@@ -32,7 +32,7 @@
         <p class="text-xs text-slate-500 mt-1">Logo hiển thị ở góc trái phiếu thu và sidebar.</p>
       </div>
       <div class="flex justify-center items-center bg-slate-50 border border-slate-200 rounded-lg p-2 h-36 overflow-hidden">
-        <img id="logoPreview" src="/static/assets/logo.png?{{ today.isoformat() }}" alt="Logo trung tâm" class="max-h-full max-w-full object-contain" />
+        <img id="logoPreview" src="{{ logo_url }}" alt="Logo trung tâm" class="max-h-full max-w-full object-contain" />
       </div>
       <form id="logoForm" class="space-y-3">
         <div id="logoDropZone" class="drag-drop-zone border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#0F766E] hover:bg-slate-50 transition-colors duration-200">
@@ -56,7 +56,7 @@
         <p class="text-xs text-slate-500 mt-1">Ảnh QR hiển thị trên phiếu báo học phí.</p>
       </div>
       <div class="flex justify-center items-center bg-slate-50 border border-slate-200 rounded-lg p-2 h-44 overflow-hidden">
-        <img id="qrPreview" src="/static/assets/qr.png?{{ today.isoformat() }}" alt="Mã QR thanh toán" class="max-h-full max-w-full object-contain" />
+        <img id="qrPreview" src="{{ qr_url }}" alt="Mã QR thanh toán" class="max-h-full max-w-full object-contain" />
       </div>
       <form id="qrForm" class="space-y-3">
         <div id="qrDropZone" class="drag-drop-zone border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#0F766E] hover:bg-slate-50 transition-colors duration-200">
@@ -174,11 +174,11 @@
   async function uploadLogoImage() {
     const data = new FormData(document.getElementById("logoForm"));
     try {
-      await api("/api/settings/logo", { method: "POST", body: data });
+      const result = await api("/api/settings/logo", { method: "POST", body: data });
       toast("Đã cập nhật logo trung tâm thành công.");
       // Refresh preview images across pages
       const preview = document.getElementById("logoPreview");
-      preview.src = "/static/assets/logo.png?v=" + new Date().getTime();
+      preview.src = result.url;
       document.getElementById("logoForm").reset();
     } catch (err) {
       toast("Lỗi khi tải logo: " + err.message, true);
@@ -224,11 +224,11 @@
   async function uploadQrImage() {
     const data = new FormData(document.getElementById("qrForm"));
     try {
-      await api("/api/settings/qr", { method: "POST", body: data });
+      const result = await api("/api/settings/qr", { method: "POST", body: data });
       toast("Đã cập nhật mã QR thành công.");
       // Refresh preview image
       const preview = document.getElementById("qrPreview");
-      preview.src = "/static/assets/qr.png?v=" + new Date().getTime();
+      preview.src = result.url;
       document.getElementById("qrForm").reset();
     } catch (err) {
       toast("Lỗi khi tải QR: " + err.message, true);

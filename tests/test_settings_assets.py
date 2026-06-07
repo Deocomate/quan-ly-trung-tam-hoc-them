@@ -51,12 +51,14 @@ def test_logo_and_qr_upload_accept_common_image_formats(isolated_assets):
             files={"file": ("logo.jpg", _image_bytes("JPEG", (16, 96, 160)), "image/jpeg")},
         )
         assert logo.status_code == 200
+        assert logo.json()["url"].startswith("/static/assets/logo.png?v=")
 
         qr = client.post(
             "/api/settings/qr",
             files={"file": ("qr.gif", _image_bytes("GIF", (0, 0, 0)), "image/gif")},
         )
         assert qr.status_code == 200
+        assert qr.json()["url"].startswith("/static/assets/qr.png?v=")
 
     for filename in ("logo.png", "qr.png"):
         with Image.open(isolated_assets / filename) as image:

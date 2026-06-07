@@ -54,6 +54,7 @@ def create_app() -> FastAPI:
         return templates.TemplateResponse("login.html", {"request": request})
 
     def page_context(request: Request, active: str, title: str, user: User, db: Session) -> dict:
+        from app.routers.settings import asset_url
         from app.services.settings_service import get_settings_map
         settings = get_settings_map(db)
         return {
@@ -62,6 +63,8 @@ def create_app() -> FastAPI:
             "title": title,
             "user": user,
             "today": today_vietnam(),
+            "logo_url": asset_url("logo.png"),
+            "qr_url": asset_url("qr.png"),
             "center_logo_text": settings.get("center_logo_text", "Hoa Tuyết\nEducation"),
         }
 

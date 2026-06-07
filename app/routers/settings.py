@@ -23,6 +23,12 @@ def _target_asset_path(filename: str) -> Path:
     return ASSETS_DIR / filename
 
 
+def asset_url(filename: str) -> str:
+    target = _target_asset_path(filename)
+    version = target.stat().st_mtime_ns if target.exists() else 0
+    return f"/static/assets/{filename}?v={version}"
+
+
 async def _read_uploaded_image(file: UploadFile, label: str) -> bytes:
     data = await file.read()
     if not data:
@@ -71,7 +77,7 @@ async def upload_qr(file: UploadFile = File(...)):
     data = await _read_uploaded_image(file, "QR")
     target = _target_asset_path("qr.png")
     _save_as_png(data, target, "QR")
-    return {"message": "Đã cập nhật mã QR thanh toán."}
+    return {"message": "Đã cập nhật mã QR thanh toán.", "url": asset_url("qr.png")}
 
 
 @router.post("/logo")
@@ -79,4 +85,4 @@ async def upload_logo(file: UploadFile = File(...)):
     data = await _read_uploaded_image(file, "Logo")
     target = _target_asset_path("logo.png")
     _save_as_png(data, target, "Logo")
-    return {"message": "Đã cập nhật logo trung tâm thành công."}
+    return {"message": "Đã cập nhật logo trung tâm thành công.", "url": asset_url("logo.png")}
