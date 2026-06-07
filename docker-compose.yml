@@ -1,0 +1,25 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quanlylophoc_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - ql_db_data:/app/database
+      - ql_assets_data:/app/static/assets
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ql_db_data:
+    driver: local
+  ql_assets_data:
+    driver: local

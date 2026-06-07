@@ -1,0 +1,36 @@
+# Python artifacts
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments and secrets
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# Git and local tooling
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+*.swo
+_codebase/
+
+# Databases and local persistent files
+database/*.sqlite3
+database/*.db
+static/assets/logo.png
+static/assets/qr.png
+
+# Local-only files
+run.py
+tests/
+docs/
+pip-log.txt
