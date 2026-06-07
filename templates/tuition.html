@@ -1,0 +1,194 @@
+<!-- templates/tuition.html -->
+{% extends "base.html" %}
+{% block content %}
+<section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+    <div>
+      <h2 class="text-xl font-extrabold text-slate-800">Tính và chốt học phí</h2>
+      <p class="text-sm text-slate-500 mt-0.5">Học phí được tính dựa trên số buổi điểm danh Có mặt và Muộn trong tháng.</p>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-muted px-4 font-bold" onclick="loadTuition()">Tính thử</button>
+      <button id="lockBtn" class="btn btn-primary px-5 font-bold" onclick="lockTuition()">Chốt học phí</button>
+    </div>
+  </div>
+
+  <div class="mt-4 grid gap-4 sm:grid-cols-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
+    <div>
+      <label class="label text-slate-700 font-semibold mb-1">Tháng</label>
+      <input id="month" class="field rounded-lg border-slate-200" type="number" min="1" max="12" />
+    </div>
+    <div>
+      <label class="label text-slate-700 font-semibold mb-1">Năm</label>
+      <input id="year" class="field rounded-lg border-slate-200" type="number" min="2000" />
+    </div>
+    <div>
+      <label class="label text-slate-700 font-semibold mb-1">Lọc lớp/môn học</label>
+      <select id="tuitionClass" class="field rounded-lg border-slate-200">
+        <option value="">Tất cả</option>
+      </select>
+    </div>
+    <div>
+      <a id="zipLink" class="btn btn-muted w-full justify-center rounded-lg font-bold" href="#">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Xuất PDF hàng loạt
+      </a>
+    </div>
+  </div>
+
+  <div id="tuitionNotice" class="mt-2 mb-4 hidden rounded-lg bg-teal-50 border border-teal-200 p-3 text-sm font-bold text-teal-800"></div>
+
+  <div class="mt-4 overflow-auto">
+    <table id="tuitionTable" class="table w-full">
+      <thead>
+        <tr>
+          <th class="font-bold text-slate-700">Học sinh</th>
+          <th class="font-bold text-slate-700">Số buổi học</th>
+          <th class="font-bold text-slate-700">Tổng tiền</th>
+          <th class="font-bold text-slate-700">Chi tiết học phí</th>
+          <th class="font-bold text-slate-700">Phiếu thu</th>
+        </tr>
+      </thead>
+      <tbody id="tuitionRows"></tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById("month").value = "{{ today.month }}";
+  document.getElementById("year").value = "{{ today.year }}";
+  let dataTableInstance = null;
+
+  async function loadTuitionClasses() {
+    const classes = await api("/api/classes?active=true");
+    document.getElementById("tuitionClass").innerHTML = `<option value="">Tất cả</option>` + classes.map((c) => `<option value="${c.id}">${c.name} - ${c.subject}</option>`).join("");
+    
+    // Khởi tạo Select2
+    $("#tuitionClass").select2({
+      placeholder: "Gõ để tìm kiếm lớp...",
+      width: '100%'
+    });
+  }
+
+  function query() {
+    const month = document.getElementById("month").value;
+    const year = document.getElementById("year").value;
+    const classId = document.getElementById("tuitionClass").value;
+    return `month=${month}&year=${year}${classId ? `&class_id=${classId}` : ""}`;
+  }
+
+  async function loadTuition() {
+    if (dataTableInstance) {
+      dataTableInstance.destroy();
+      dataTableInstance = null;
+    }
+
+    const data = await api(`/api/tuition/preview?${query()}`);
+    // Giữ nút chốt luôn hoạt động
+    document.getElementById("lockBtn").disabled = false;
+    
+    const notice = document.getElementById("tuitionNotice");
+    notice.classList.toggle("hidden", !data.is_locked);
+    notice.textContent = data.is_locked ? `Kỳ học phí đã chốt${data.locked_at ? ` lúc ${data.locked_at}` : ""}. Bạn vẫn có thể sửa điểm danh và chốt học phí lại để ghi đè dữ liệu cũ.` : "";
+    
+    // Cập nhật liên kết xuất file PDF gộp thay vì file ZIP
+    document.getElementById("zipLink").href = `/api/tuition/export-pdf?${query()}`;
+    
+    if (data.is_locked) {
+      const records = await api(`/api/tuition/records?${query()}`);
+      renderPreview(records, true);
+    } else {
+      renderPreview(data.records, false);
+    }
+
+    // Khởi tạo DataTables
+    dataTableInstance = $("#tuitionTable").DataTable({
+      language: {
+        search: "Tìm kiếm:",
+        lengthMenu: "Hiển thị _MENU_ bản ghi",
+        info: "Đang xem _START_ đến _END_ trong tổng số _TOTAL_ bản ghi",
+        paginate: {
+          first: "Đầu",
+          last: "Cuối",
+          next: "Tiếp",
+          previous: "Trước"
+        },
+        emptyTable: "Chưa có dữ liệu học phí cho kỳ này."
+      },
+      pageLength: 10,
+      retrieve: true
+    });
+  }
+
+  function renderPreview(rows, isLocked) {
+    const month = document.getElementById("month").value;
+    const year = document.getElementById("year").value;
+
+    document.getElementById("tuitionRows").innerHTML = rows.map((row) => {
+      const itemsHtml = row.items.map((i) => {
+        let noteHtml = "";
+        if (i.notes) {
+          noteHtml = ` <span class="text-xs text-slate-500 font-normal italic">(Ghi chú: ${i.notes})</span>`;
+        }
+        
+        let editBtn = "";
+        if (isLocked && i.id) {
+          editBtn = ` <button type="button" class="text-teal-600 hover:text-teal-800 font-bold ml-1 text-xs" onclick="editTuitionNote(${i.id}, '${i.notes || ''}')">[Sửa ghi chú]</button>`;
+        }
+        
+        return `• ${i.class_name} - ${i.subject}: ${i.sessions} buổi x ${formatMoney(i.unit_fee)} = <span class='font-semibold'>${formatMoney(i.amount)}</span>${noteHtml}${editBtn}`;
+      }).join("<br>");
+
+      const pdfBtnText = isLocked ? "Xuất PDF" : "Xuất PDF (Tạm)";
+      const pdfBtn = `<a class="btn btn-muted !min-height-0 !py-1 !px-2.5 text-xs font-semibold" href="/api/tuition/export-pdf?month=${month}&year=${year}&student_id=${row.student_id}">${pdfBtnText}</a>`;
+
+      return `
+        <tr>
+          <td>
+            <div class="font-bold text-slate-800">${row.student_name}</div>
+            <div class="text-xs text-slate-400 font-mono mt-0.5">${row.student_code}</div>
+          </td>
+          <td class="font-semibold text-slate-700">${row.total_sessions} buổi</td>
+          <td class="font-bold text-teal-800">${formatMoney(row.total_amount)}</td>
+          <td class="text-sm text-slate-600 leading-relaxed">${itemsHtml}</td>
+          <td>${pdfBtn}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  async function editTuitionNote(itemId, currentNote) {
+    const newNote = prompt("Nhập ghi chú cho môn học này:", currentNote);
+    if (newNote === null) return;
+    try {
+      await api(`/api/tuition/items/${itemId}/notes`, {
+        method: "PUT",
+        body: JSON.stringify({ notes: newNote.trim() })
+      });
+      toast("Đã cập nhật ghi chú thành công.");
+      await loadTuition();
+    } catch (err) {
+      toast("Lỗi khi lưu ghi chú: " + err.message, true);
+    }
+  }
+
+  async function lockTuition() {
+    if (!requireConfirm("Chốt học phí tháng này? Nếu đã chốt trước đó, hệ thống sẽ tính lại học phí mới và ghi đè lên dữ liệu cũ.")) return;
+    const payload = { 
+      month: Number(document.getElementById("month").value), 
+      year: Number(document.getElementById("year").value), 
+      class_id: document.getElementById("tuitionClass").value ? Number(document.getElementById("tuitionClass").value) : null 
+    };
+    const result = await api("/api/tuition/lock", { method: "POST", body: JSON.stringify(payload) });
+    toast(`${result.message} Số phiếu: ${result.count}`);
+    loadTuition();
+  }
+
+  $("#tuitionClass").on("change", loadTuition);
+  Promise.all([loadTuitionClasses()]).then(loadTuition).catch((err) => toast(err.message, true));
+</script>
+{% endblock %}

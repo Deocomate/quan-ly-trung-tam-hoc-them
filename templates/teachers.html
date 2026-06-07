@@ -1,0 +1,203 @@
+<!-- templates/teachers.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6 xl:grid-cols-[1fr_360px]">
+  <!-- Left Column: Teacher List -->
+  <section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100">
+    <div class="border-b border-slate-100 pb-3 mb-4 flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-extrabold text-slate-800">Danh sách Giáo viên</h2>
+        <p class="text-sm text-slate-500 mt-0.5">Quản lý hồ sơ giáo viên và thông số lương mặc định.</p>
+      </div>
+      <button class="btn btn-muted border border-slate-200" onclick="resetForm()">
+        Làm mới danh sách
+      </button>
+    </div>
+    
+    <div class="mt-4 overflow-auto">
+      <table id="teachersTable" class="table w-full">
+        <thead>
+          <tr>
+            <th class="font-bold text-slate-700">Họ tên</th>
+            <th class="font-bold text-slate-700">Liên hệ</th>
+            <th class="font-bold text-slate-700">Hệ số mặc định</th>
+            <th class="font-bold text-slate-700">Lớp phụ trách</th>
+            <th class="font-bold text-slate-700">Trạng thái</th>
+            <th class="font-bold text-slate-700">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="teacherRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Right Column: Add/Update Form -->
+  <section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-fit">
+    <div class="border-b border-slate-100 pb-3 mb-4">
+      <h2 id="formTitle" class="text-lg font-extrabold text-slate-800">Thêm giáo viên mới</h2>
+      <p id="formSubtitle" class="text-xs text-slate-400">Đăng ký thêm hồ sơ giáo viên giảng dạy.</p>
+    </div>
+    <form id="teacherForm" class="space-y-4">
+      <input type="hidden" id="teacherId" name="id" />
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Họ và tên</label>
+        <input class="field rounded-lg border-slate-200" name="full_name" placeholder="Ví dụ: Nguyễn Văn A" required />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Số điện thoại</label>
+        <input class="field rounded-lg border-slate-200" name="phone" placeholder="Ví dụ: 0987654321" />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Địa chỉ Email</label>
+        <input class="field rounded-lg border-slate-200" name="email" type="email" placeholder="Ví dụ: a@gmail.com" />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Hệ số lương mặc định</label>
+        <input class="field rounded-lg border-slate-200" name="default_salary_coefficient" type="number" step="0.01" min="0" value="1.0" required />
+      </div>
+      <div>
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 py-1 cursor-pointer">
+          <input id="isActiveCheckbox" name="is_active" type="checkbox" checked class="rounded text-teal-600 focus:ring-teal-500" /> Đang làm việc
+        </label>
+      </div>
+      
+      <div class="flex gap-2 pt-2">
+        <button id="submitBtn" class="btn btn-primary flex-1 py-2.5 rounded-lg font-bold">Lưu hồ sơ</button>
+        <button type="button" id="cancelBtn" class="btn btn-muted border border-slate-200 hidden" onclick="resetForm()">Hủy</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let dataTableInstance = null;
+
+  async function loadTeachers() {
+    try {
+      const teachers = await api("/api/teachers");
+      const rows = document.getElementById("teacherRows");
+      
+      if (dataTableInstance) {
+        dataTableInstance.destroy();
+      }
+
+      rows.innerHTML = teachers.map(t => {
+        const classBadges = t.classes.length > 0 
+          ? t.classes.map(c => `<span class="inline-block bg-teal-50 text-teal-800 text-xs px-2 py-0.5 rounded border border-teal-100 font-semibold">${c.name}</span>`).join(" ") 
+          : `<span class="text-slate-400 text-xs">-</span>`;
+          
+        const statusBadge = t.is_active 
+          ? `<span class="inline-block bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded font-bold">Hoạt động</span>` 
+          : `<span class="inline-block bg-red-50 text-red-700 text-xs px-2 py-0.5 rounded font-bold">Đã nghỉ</span>`;
+
+        return `
+          <tr>
+            <td class="font-bold text-slate-800">${t.full_name}</td>
+            <td>
+              <div class="text-sm font-medium text-slate-700">${t.phone || "-"}</div>
+              <div class="text-xs text-slate-400">${t.email || "-"}</div>
+            </td>
+            <td class="font-mono text-center">${t.default_salary_coefficient.toFixed(2)}</td>
+            <td><div class="flex flex-wrap gap-1">${classBadges}</div></td>
+            <td class="text-center">${statusBadge}</td>
+            <td class="text-center">
+              <div class="flex justify-center gap-1.5">
+                <button class="btn btn-muted py-1 px-2.5 text-xs border border-slate-200" onclick="editTeacher(${JSON.stringify(t).replace(/"/g, '&quot;')})">Sửa</button>
+                <button class="btn btn-muted py-1 px-2.5 text-xs text-red-600 border border-red-100 hover:bg-red-50" onclick="deleteTeacher(${t.id})">Xóa</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      dataTableInstance = $("#teachersTable").DataTable({
+        language: {
+          url: "https://cdn.datatables.net/plug-ins/1.13.7/i18n/vi.json"
+        },
+        pageLength: 10,
+        lengthChange: false,
+        ordering: true,
+        info: false
+      });
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function editTeacher(t) {
+    document.getElementById("formTitle").textContent = "Cập nhật giáo viên";
+    document.getElementById("formSubtitle").textContent = "Chỉnh sửa thông tin giáo viên hiện tại.";
+    document.getElementById("teacherId").value = t.id;
+    
+    const form = document.getElementById("teacherForm");
+    form.elements["full_name"].value = t.full_name;
+    form.elements["phone"].value = t.phone || "";
+    form.elements["email"].value = t.email || "";
+    form.elements["default_salary_coefficient"].value = t.default_salary_coefficient;
+    document.getElementById("isActiveCheckbox").checked = t.is_active;
+
+    document.getElementById("cancelBtn").classList.remove("hidden");
+    document.getElementById("submitBtn").textContent = "Cập nhật";
+  }
+
+  function resetForm() {
+    document.getElementById("formTitle").textContent = "Thêm giáo viên mới";
+    document.getElementById("formSubtitle").textContent = "Đăng ký thêm hồ sơ giáo viên giảng dạy.";
+    document.getElementById("teacherId").value = "";
+    document.getElementById("teacherForm").reset();
+    document.getElementById("isActiveCheckbox").checked = true;
+    document.getElementById("cancelBtn").classList.add("hidden");
+    document.getElementById("submitBtn").textContent = "Lưu hồ sơ";
+  }
+
+  document.getElementById("teacherForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const id = document.getElementById("teacherId").value;
+    const form = event.target;
+    
+    const payload = {
+      full_name: form.elements["full_name"].value.trim(),
+      phone: form.elements["phone"].value.trim() || null,
+      email: form.elements["email"].value.trim() || null,
+      default_salary_coefficient: parseFloat(form.elements["default_salary_coefficient"].value),
+      is_active: document.getElementById("isActiveCheckbox").checked
+    };
+
+    try {
+      if (id) {
+        await api(`/api/teachers/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        });
+        toast("Đã cập nhật thông tin giáo viên.");
+      } else {
+        await api("/api/teachers", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        toast("Đã thêm giáo viên mới thành công.");
+      }
+      resetForm();
+      loadTeachers();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  async function deleteTeacher(id) {
+    if (!confirm("Bạn có chắc chắn muốn ngừng hoạt động giáo viên này?")) return;
+    try {
+      await api(`/api/teachers/${id}`, { method: "DELETE" });
+      toast("Đã ngừng hoạt động giáo viên.");
+      loadTeachers();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // Khởi chạy
+  loadTeachers();
+</script>
+{% endblock %}

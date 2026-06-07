@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đăng nhập - Quản lý lớp học</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/app.css?v=modal-white-20260607" />
+  </head>
+  <body class="min-h-screen grid place-items-center bg-[#f6f8fb] p-6">
+    <section class="panel w-full max-w-md p-8">
+      <h1 class="text-2xl font-extrabold">Đăng nhập quản trị</h1>
+      <p class="mt-2 text-sm text-slate-500">Tài khoản mặc định lần đầu: admin / 123456</p>
+      <form id="loginForm" class="mt-6 space-y-4">
+        <div>
+          <label class="label">Tên đăng nhập</label>
+          <input class="field" name="username" placeholder="Nhập tên đăng nhập" autocomplete="username" required />
+        </div>
+        <div>
+          <label class="label">Mật khẩu</label>
+          <input class="field" name="password" type="password" placeholder="Nhập mật khẩu" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-primary w-full" type="submit">Đăng nhập</button>
+      </form>
+      <p id="loginError" class="mt-4 hidden rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700"></p>
+    </section>
+    <script src="/static/js/app.js"></script>
+    <script>
+      document.getElementById("loginForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const error = document.getElementById("loginError");
+        error.classList.add("hidden");
+        try {
+          await api("/api/auth/login", { method: "POST", body: JSON.stringify(formDataJson(event.target)) });
+          window.location.href = "/dashboard";
+        } catch (err) {
+          error.textContent = err.message;
+          error.classList.remove("hidden");
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }} - Quản lý lớp học</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Thêm DataTables & jQuery CDN -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <!-- Thêm Select2 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link rel="stylesheet" href="/static/css/app.css?v=modal-white-20260607" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="mb-8 flex items-center gap-3">
+          <img src="/static/assets/logo.png?{{ today.isoformat() }}" alt="Logo" class="h-10 w-10 object-contain rounded bg-white p-0.5" />
+          <div>
+            <div class="text-sm font-extrabold text-white">Quản lý lớp học</div>
+            <div class="text-[10px] text-slate-400">Hệ thống nội bộ</div>
+          </div>
+        </div>
+        <nav class="space-y-1">
+          <a class="nav-link {{ 'active' if active == 'dashboard' else '' }}" href="/dashboard">Tổng quan</a>
+          <a class="nav-link {{ 'active' if active == 'students' else '' }}" href="/students">Học sinh</a>
+          <a class="nav-link {{ 'active' if active == 'classes' else '' }}" href="/classes">Lớp/Môn học</a>
+          <a class="nav-link {{ 'active' if active == 'attendance' else '' }}" href="/attendance">Điểm danh</a>
+          <a class="nav-link {{ 'active' if active == 'tuition' else '' }}" href="/tuition">Học phí</a>
+          <a class="nav-link {{ 'active' if active == 'teachers' else '' }}" href="/teachers">Giáo viên</a>
+          <a class="nav-link {{ 'active' if active == 'payroll' else '' }}" href="/payroll">Lương giáo viên</a>
+          <a class="nav-link {{ 'active' if active == 'settings' else '' }}" href="/settings">Cài đặt phiếu thu</a>
+          <a class="nav-link {{ 'active' if active == 'data_management' else '' }}" href="/data-management">Quản lý dữ liệu</a>
+          <a class="nav-link {{ 'active' if active == 'center_info' else '' }}" href="/center-info">Thông tin trung tâm</a>
+          <a class="nav-link {{ 'active' if active == 'admin_users' else '' }}" href="/admin-users">Tài khoản</a>
+        </nav>
+      </aside>
+      <main class="main-panel">
+        <header class="page-header">
+          <div>
+            <h1 class="text-2xl font-extrabold">{{ title }}</h1>
+            <p class="mt-1 text-sm text-slate-500">Dữ liệu ngày {{ today.strftime('%d/%m/%Y') }} theo múi giờ Việt Nam</p>
+          </div>
+          <div class="flex items-center gap-3">
+            {% if user.must_change_password %}
+            <span class="status-pill bg-amber-100 text-amber-800">Nên đổi mật khẩu mặc định</span>
+            {% endif %}
+            <span class="text-sm font-semibold text-slate-600">{{ user.full_name }}</span>
+            <button class="btn btn-muted" onclick="logout()">Đăng xuất</button>
+          </div>
+        </header>
+        <section class="content">
+          {% block content %}{% endblock %}
+        </section>
+      </main>
+    </div>
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

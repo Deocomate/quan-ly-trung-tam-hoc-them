@@ -1,0 +1,132 @@
+<!-- templates/admin_users.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6 xl:grid-cols-[1fr_360px]">
+  <section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100">
+    <div class="border-b border-slate-100 pb-3 mb-4">
+      <h2 class="text-xl font-extrabold text-slate-800">Tài khoản quản trị</h2>
+      <p class="text-sm text-slate-500 mt-0.5">Quản lý và đổi mật khẩu cho các tài khoản quản trị hệ thống.</p>
+    </div>
+    <div class="mt-4 overflow-auto">
+      <table id="usersTable" class="table w-full">
+        <thead>
+          <tr>
+            <th class="font-bold text-slate-700">Tên đăng nhập</th>
+            <th class="font-bold text-slate-700">Họ tên</th>
+            <th class="font-bold text-slate-700">Trạng thái</th>
+            <th class="font-bold text-slate-700">Mật khẩu</th>
+          </tr>
+        </thead>
+        <tbody id="userRows"></tbody>
+      </table>
+    </div>
+  </section>
+  <section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-fit">
+    <div class="border-b border-slate-100 pb-3 mb-4">
+      <h2 class="text-lg font-extrabold text-slate-800">Tạo tài khoản mới</h2>
+      <p class="text-xs text-slate-400">Đăng ký thêm tài khoản quản trị mới.</p>
+    </div>
+    <form id="userForm" class="space-y-4">
+      <div>
+        <label class="label text-slate-700 font-semibold">Tên đăng nhập</label>
+        <input class="field rounded-lg border-slate-200" name="username" placeholder="Ví dụ: admin2" required />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold">Họ tên</label>
+        <input class="field rounded-lg border-slate-200" name="full_name" placeholder="Ví dụ: Nguyễn Văn B" required />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold">Mật khẩu</label>
+        <input class="field rounded-lg border-slate-200" name="password" type="password" required minlength="6" placeholder="Tối thiểu 6 ký tự" />
+      </div>
+      <div class="pt-1">
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 py-1">
+          <input name="is_active" type="checkbox" checked class="rounded text-teal-600 focus:ring-teal-500" /> Đang hoạt động hoạt động
+        </label>
+      </div>
+      <button class="btn btn-primary w-full py-2.5 rounded-lg font-bold">Tạo tài khoản</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let dataTableInstance = null;
+
+  async function loadUsers() {
+    const users = await api("/api/admin/users");
+    
+    if (dataTableInstance) {
+      dataTableInstance.destroy();
+    }
+
+    document.getElementById("userRows").innerHTML = users.map((u) => `
+      <tr>
+        <td class="font-bold text-teal-800 align-middle">${u.username}</td>
+        <td class="align-middle"><input class="field rounded-lg border-slate-200 !min-height-0 !py-1.5" id="name-${u.id}" value="${u.full_name}" /></td>
+        <td class="align-middle">
+          <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 py-1">
+            <input id="active-${u.id}" type="checkbox" class="rounded text-teal-600 focus:ring-teal-500" ${u.is_active ? "checked" : ""} /> Đang hoạt động
+          </label>
+        </td>
+        <td class="space-y-2">
+          <input class="field rounded-lg border-slate-200 !min-height-0 !py-1.5" id="pass-${u.id}" type="password" placeholder="Mật khẩu mới" />
+          <div class="flex gap-1.5">
+            <button class="btn btn-muted !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="saveUser(${u.id})">Lưu</button>
+            <button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="savePassword(${u.id})">Đổi mật khẩu</button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    dataTableInstance = $("#usersTable").DataTable({
+      language: {
+        search: "Tìm kiếm:",
+        lengthMenu: "Hiển thị _MENU_ tài khoản",
+        info: "Đang xem _START_ đến _END_ trong tổng số _TOTAL_ tài khoản",
+        paginate: {
+          first: "Đầu",
+          last: "Cuối",
+          next: "Tiếp",
+          previous: "Trước"
+        }
+      },
+      pageLength: 10,
+      order: [[0, "asc"]],
+      retrieve: true
+    });
+  }
+
+  async function saveUser(id) {
+    await api(`/api/admin/users/${id}`, { 
+      method: "PUT", 
+      body: JSON.stringify({ 
+        full_name: document.getElementById(`name-${id}`).value, 
+        is_active: document.getElementById(`active-${id}`).checked 
+      }) 
+    });
+    toast("Đã lưu tài khoản.");
+    loadUsers();
+  }
+
+  async function savePassword(id) {
+    const password = document.getElementById(`pass-${id}`).value;
+    if (!password || password.length < 6) return toast("Mật khẩu mới cần ít nhất 6 ký tự.", true);
+    await api(`/api/admin/users/${id}/password`, { method: "PUT", body: JSON.stringify({ password }) });
+    toast("Đã đổi mật khẩu.");
+    loadUsers();
+  }
+
+  document.getElementById("userForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await api("/api/admin/users", { method: "POST", body: JSON.stringify(formDataJson(event.target)) });
+    event.target.reset();
+    event.target.elements.is_active.checked = true;
+    toast("Đã tạo tài khoản.");
+    loadUsers();
+  });
+
+  loadUsers().catch((err) => toast(err.message, true));
+</script>
+{% endblock %}

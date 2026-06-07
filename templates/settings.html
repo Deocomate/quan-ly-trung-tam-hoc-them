@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Nhúng CSS Summernote Lite -->
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.css" rel="stylesheet" />
+
+<div class="grid gap-5 xl:grid-cols-[1fr_360px]">
+  <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100">
+    <h2 class="text-lg font-extrabold text-slate-800 border-b border-slate-100 pb-3">Cài đặt nội dung phiếu thu</h2>
+    <form id="settingsForm" class="mt-5 grid gap-4 md:grid-cols-2">
+      <div><label class="label text-slate-700 font-semibold">Tên trung tâm</label><textarea class="field rounded-lg border-slate-200" name="center_name"></textarea></div>
+      <div><label class="label text-slate-700 font-semibold">Địa chỉ</label><textarea class="field rounded-lg border-slate-200" name="center_address"></textarea></div>
+      <div class="md:col-span-2"><label class="label text-slate-700 font-semibold">Hotline</label><textarea class="field rounded-lg border-slate-200" name="center_hotline"></textarea></div>
+      <div class="md:col-span-2"><label class="label text-slate-700 font-semibold">Lời giới thiệu</label><textarea class="field rounded-lg border-slate-200" name="receipt_intro"></textarea></div>
+      <div class="md:col-span-2"><label class="label text-slate-700 font-semibold">Hạn nộp học phí</label><textarea class="field rounded-lg border-slate-200" name="payment_deadline"></textarea></div>
+      <div class="md:col-span-2"><label class="label text-slate-700 font-semibold">Mẫu nội dung chuyển khoản</label><input class="field rounded-lg border-slate-200" name="payment_content_template" /></div>
+      
+      <!-- Đổi Lời cảm ơn -> Lưu ý và dùng textarea cho Summernote -->
+      <div class="md:col-span-2">
+        <label class="label text-slate-700 font-semibold mb-1">Lưu ý (Chấp nhận định dạng HTML)</label>
+        <textarea id="receipt_footer" name="receipt_footer" class="field rounded-lg border-slate-200"></textarea>
+      </div>
+      
+      <div class="md:col-span-2 flex justify-end"><button class="btn btn-primary py-2.5 px-6 rounded-lg font-bold">Lưu cài đặt</button></div>
+    </form>
+  </section>
+
+  <div class="space-y-5">
+    <!-- Logo trung tâm -->
+    <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col gap-4">
+      <div>
+        <h2 class="text-lg font-extrabold text-slate-800 border-b border-slate-100 pb-3">Logo trung tâm</h2>
+        <p class="text-xs text-slate-500 mt-1">Logo hiển thị ở góc trái phiếu thu và sidebar.</p>
+      </div>
+      <div class="flex justify-center items-center bg-slate-50 border border-slate-200 rounded-lg p-2 h-36 overflow-hidden">
+        <img id="logoPreview" src="/static/assets/logo.png?{{ today.isoformat() }}" alt="Logo trung tâm" class="max-h-full max-w-full object-contain" />
+      </div>
+      <form id="logoForm" class="space-y-3">
+        <div id="logoDropZone" class="drag-drop-zone border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#0F766E] hover:bg-slate-50 transition-colors duration-200">
+          <div class="space-y-1 pointer-events-none">
+            <svg class="mx-auto h-6 w-6 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <div class="text-xs text-slate-600">
+              <span class="font-bold text-[#0F766E]">Tải logo mới</span> hoặc kéo thả vào đây
+            </div>
+          </div>
+          <input id="logoFileInput" name="file" type="file" accept="image/png, image/jpeg" class="hidden" required />
+        </div>
+      </form>
+    </section>
+
+    <!-- Mã QR thanh toán -->
+    <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col gap-4">
+      <div>
+        <h2 class="text-lg font-extrabold text-slate-800 border-b border-slate-100 pb-3">Mã QR thanh toán</h2>
+        <p class="text-xs text-slate-500 mt-1">Ảnh QR hiển thị trên phiếu báo học phí.</p>
+      </div>
+      <div class="flex justify-center items-center bg-slate-50 border border-slate-200 rounded-lg p-2 h-44 overflow-hidden">
+        <img id="qrPreview" src="/static/assets/qr.png?{{ today.isoformat() }}" alt="Mã QR thanh toán" class="max-h-full max-w-full object-contain" />
+      </div>
+      <form id="qrForm" class="space-y-3">
+        <div id="qrDropZone" class="drag-drop-zone border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#0F766E] hover:bg-slate-50 transition-colors duration-200">
+          <div class="space-y-1 pointer-events-none">
+            <svg class="mx-auto h-6 w-6 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <div class="text-xs text-slate-600">
+              <span class="font-bold text-[#0F766E]">Tải QR mới</span> hoặc kéo thả vào đây
+            </div>
+          </div>
+          <input id="qrFileInput" name="file" type="file" accept="image/png" class="hidden" required />
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Nhúng JS Summernote Lite -->
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-lite.min.js"></script>
+<script>
+  const settingFieldNames = [
+    "center_name",
+    "center_address",
+    "center_hotline",
+    "receipt_intro",
+    "payment_deadline",
+    "payment_content_template",
+    "receipt_footer",
+  ];
+
+  $(document).ready(function() {
+    $('#receipt_footer').summernote({
+      placeholder: 'Nhập các lưu ý về học phí (ví dụ: hạn nộp, tài khoản ngân hàng)...',
+      height: 160,
+      fontNames: ['Times New Roman', 'Arial', 'Inter'],
+      defaultFontName: 'Times New Roman',
+      toolbar: [
+        ['font', ['bold', 'italic', 'underline', 'clear']],
+        ['fontname', ['fontname']],
+        ['fontsize', ['fontsize']],
+        ['color', ['color']],
+        ['para', ['ul', 'ol', 'paragraph']],
+        ['view', ['codeview', 'help']]
+      ]
+    });
+    loadSettings().catch((err) => toast(err.message, true));
+  });
+
+  async function loadSettings() {
+    const settings = await api("/api/settings");
+    const form = document.getElementById("settingsForm");
+    for (const name of settingFieldNames) {
+      const value = settings[name] || "";
+      if (name === "receipt_footer") {
+        $('#receipt_footer').summernote('code', value);
+      } else if (form.elements[name]) {
+        form.elements[name].value = value;
+      }
+    }
+  }
+
+  document.getElementById("settingsForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    // Đồng bộ mã HTML từ Summernote editor vào textarea trước khi submit
+    $('#receipt_footer').val($('#receipt_footer').summernote('code'));
+    const payload = settingFieldNames.map((key) => ({
+      key,
+      value: key === "receipt_footer"
+        ? $('#receipt_footer').summernote('code')
+        : String(event.target.elements[key]?.value || ""),
+    }));
+    await api("/api/settings", { method: "PUT", body: JSON.stringify(payload) });
+    toast("Đã lưu cài đặt phiếu thu.");
+  });
+
+  // Setup Drag & Drop for Logo Image
+  const logoDropZone = document.getElementById("logoDropZone");
+  const logoFileInput = document.getElementById("logoFileInput");
+
+  logoDropZone.addEventListener("click", () => logoFileInput.click());
+
+  ["dragenter", "dragover", "dragleave", "drop"].forEach(eventName => {
+    logoDropZone.addEventListener(eventName, e => {
+      e.preventDefault();
+      e.stopPropagation();
+    }, false);
+  });
+
+  ["dragenter", "dragover"].forEach(eventName => {
+    logoDropZone.addEventListener(eventName, () => logoDropZone.classList.add("border-[#0F766E]", "bg-slate-50"), false);
+  });
+
+  ["dragleave", "drop"].forEach(eventName => {
+    logoDropZone.addEventListener(eventName, () => logoDropZone.classList.remove("border-[#0F766E]", "bg-slate-50"), false);
+  });
+
+  logoDropZone.addEventListener("drop", (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (files.length > 0) {
+      logoFileInput.files = files;
+      uploadLogoImage();
+    }
+  }, false);
+
+  logoFileInput.addEventListener("change", () => {
+    if (logoFileInput.files.length > 0) {
+      uploadLogoImage();
+    }
+  });
+
+  async function uploadLogoImage() {
+    const data = new FormData(document.getElementById("logoForm"));
+    try {
+      await api("/api/settings/logo", { method: "POST", body: data });
+      toast("Đã cập nhật logo trung tâm thành công.");
+      // Refresh preview images across pages
+      const preview = document.getElementById("logoPreview");
+      preview.src = "/static/assets/logo.png?v=" + new Date().getTime();
+      document.getElementById("logoForm").reset();
+    } catch (err) {
+      toast("Lỗi khi tải logo: " + err.message, true);
+    }
+  }
+
+  // Setup Drag & Drop for QR Code
+  const qrDropZone = document.getElementById("qrDropZone");
+  const qrFileInput = document.getElementById("qrFileInput");
+
+  qrDropZone.addEventListener("click", () => qrFileInput.click());
+
+  ["dragenter", "dragover", "dragleave", "drop"].forEach(eventName => {
+    qrDropZone.addEventListener(eventName, e => {
+      e.preventDefault();
+      e.stopPropagation();
+    }, false);
+  });
+
+  ["dragenter", "dragover"].forEach(eventName => {
+    qrDropZone.addEventListener(eventName, () => qrDropZone.classList.add("border-[#0F766E]", "bg-slate-50"), false);
+  });
+
+  ["dragleave", "drop"].forEach(eventName => {
+    qrDropZone.addEventListener(eventName, () => qrDropZone.classList.remove("border-[#0F766E]", "bg-slate-50"), false);
+  });
+
+  qrDropZone.addEventListener("drop", (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (files.length > 0) {
+      qrFileInput.files = files;
+      uploadQrImage();
+    }
+  }, false);
+
+  qrFileInput.addEventListener("change", () => {
+    if (qrFileInput.files.length > 0) {
+      uploadQrImage();
+    }
+  });
+
+  async function uploadQrImage() {
+    const data = new FormData(document.getElementById("qrForm"));
+    try {
+      await api("/api/settings/qr", { method: "POST", body: data });
+      toast("Đã cập nhật mã QR thành công.");
+      // Refresh preview image
+      const preview = document.getElementById("qrPreview");
+      preview.src = "/static/assets/qr.png?v=" + new Date().getTime();
+      document.getElementById("qrForm").reset();
+    } catch (err) {
+      toast("Lỗi khi tải QR: " + err.message, true);
+    }
+  }
+</script>
+{% endblock %}

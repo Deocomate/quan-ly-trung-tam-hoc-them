@@ -1,0 +1,230 @@
+<!-- templates/students.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6 xl:grid-cols-[1fr_380px]">
+  <!-- Vùng 1: Danh Sách Học Sinh có tích hợp DataTables -->
+  <section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+      <div>
+        <h2 class="text-xl font-extrabold text-slate-800">Danh sách học sinh</h2>
+        <p class="text-sm text-slate-500 mt-0.5">Quản lý hồ sơ học sinh, tìm kiếm và phân lớp trực quan.</p>
+      </div>
+      <button class="btn btn-primary" onclick="openStudentForm()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+        </svg>
+        Thêm học sinh
+      </button>
+    </div>
+    
+    <div class="mt-4 overflow-auto">
+      <table id="studentsTable" class="table w-full">
+        <thead>
+          <tr>
+            <th class="font-bold text-slate-700">Mã</th>
+            <th class="font-bold text-slate-700">Họ tên</th>
+            <th class="font-bold text-slate-700">Phụ huynh</th>
+            <th class="font-bold text-slate-700">Lớp/Môn học</th>
+            <th class="font-bold text-slate-700">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="studentRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Vùng 2: Form Gán lớp/môn học -->
+  <section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100 h-fit">
+    <div class="border-b border-slate-100 pb-3 mb-4">
+      <h2 class="text-lg font-extrabold text-slate-800">Gán lớp / Môn học</h2>
+      <p class="text-xs text-slate-400">Đăng ký học môn mới cho học sinh hiện tại.</p>
+    </div>
+    <form id="enrollmentForm" class="space-y-4">
+      <div>
+        <label class="label text-slate-700 font-semibold">Chọn học sinh</label>
+        <select class="field rounded-lg border-slate-200" name="student_id" data-number="true" required></select>
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold">Chọn lớp / môn học</label>
+        <select class="field rounded-lg border-slate-200" name="class_ids" data-number="true" multiple="multiple" required></select>
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold">Học phí riêng/buổi (VNĐ)</label>
+        <input class="field rounded-lg border-slate-200" name="custom_fee" data-number="true" type="number" min="0" placeholder="Bỏ trống để áp dụng học phí mặc định" />
+      </div>
+      <div class="flex flex-col gap-2 pt-1">
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input name="is_exempt" type="checkbox" class="rounded text-teal-600 focus:ring-teal-500" /> Miễn hoàn toàn học phí
+        </label>
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input name="is_active" type="checkbox" checked class="rounded text-teal-600 focus:ring-teal-500" /> Đang học hoạt động
+        </label>
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold">Ghi chú</label>
+        <textarea class="field rounded-lg border-slate-200 h-20" name="notes" placeholder="Nhập ghi chú đăng ký lớp..."></textarea>
+      </div>
+      <button class="btn btn-primary w-full py-2.5 rounded-lg font-bold">Lưu thông tin gán lớp</button>
+    </form>
+  </section>
+</div>
+
+<!-- Modal thêm và sửa thông tin học sinh -->
+<div id="studentModal" class="modal-backdrop hidden">
+  <form id="studentForm" class="modal panel p-6 max-w-lg bg-white rounded-xl shadow-lg border border-slate-200">
+    <h3 id="studentFormTitle" class="text-xl font-extrabold text-slate-800 border-b border-slate-100 pb-3">Thêm học sinh mới</h3>
+    <input type="hidden" name="id" />
+    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+      <div class="sm:col-span-2">
+        <label class="label text-slate-700 font-semibold">Họ và tên học sinh</label>
+        <input class="field rounded-lg border-slate-200" name="full_name" placeholder="Ví dụ: Nguyễn Văn A" required />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold">Mã học sinh</label>
+        <input class="field rounded-lg border-slate-200 bg-slate-50" name="student_code" placeholder="Để trống để tự động sinh mã" />
+        <span class="text-[11px] text-slate-400 mt-1 block">Hệ thống tự động tạo mã: {Năm}HS{Số_TT} nếu để trống.</span>
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold">Số điện thoại phụ huynh</label>
+        <input class="field rounded-lg border-slate-200" name="parent_phone" placeholder="Ví dụ: 0912345678" />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 py-1">
+          <input name="is_active" type="checkbox" checked class="rounded text-teal-600 focus:ring-teal-500" /> Đang hoạt động trên hệ thống
+        </label>
+      </div>
+      <div class="sm:col-span-2">
+        <label class="label text-slate-700 font-semibold">Ghi chú thêm</label>
+        <textarea class="field rounded-lg border-slate-200 h-24" name="notes" placeholder="Nhập ghi chú về học sinh..."></textarea>
+      </div>
+    </div>
+    <div class="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+      <button type="button" class="btn btn-muted px-4" onclick="closeStudentForm()">Hủy</button>
+      <button class="btn btn-primary px-5">Lưu học sinh</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let students = [], classes = [];
+  let dataTableInstance = null;
+
+  function classBadges(list) {
+    if (!list.length) return `<span class="text-slate-400">Chưa gán lớp</span>`;
+    return list.map((c) => `<span class="status-pill ${c.is_active ? "status-active" : "status-muted"}">${c.name} - ${c.subject}${c.is_exempt ? " (miễn phí)" : ""}</span>`).join(" ");
+  }
+
+  function openStudentForm(item = null) {
+    const form = document.getElementById("studentForm");
+    form.reset();
+    form.elements.id.value = item?.id || "";
+    form.elements.student_code.value = item?.student_code || "";
+    form.elements.full_name.value = item?.full_name || "";
+    form.elements.parent_phone.value = item?.parent_phone || "";
+    form.elements.notes.value = item?.notes || "";
+    form.elements.is_active.checked = item ? item.is_active : true;
+    
+    // Nếu sửa học sinh, tắt thuộc tính sửa mã học sinh để đảm bảo tính nhất quán
+    form.elements.student_code.readOnly = !!item;
+    if (item) {
+      form.elements.student_code.classList.add("bg-slate-100", "cursor-not-allowed");
+    } else {
+      form.elements.student_code.classList.remove("bg-slate-100", "cursor-not-allowed");
+    }
+    
+    setText("studentFormTitle", item ? "Sửa thông tin học sinh" : "Thêm học sinh mới");
+    document.getElementById("studentModal").classList.remove("hidden");
+  }
+
+  function closeStudentForm() { 
+    document.getElementById("studentModal").classList.add("hidden"); 
+  }
+
+  async function loadStudents() {
+    students = await api("/api/students");
+    
+    // Phá hủy thực thể DataTable hiện tại nếu có trước khi cập nhật DOM
+    if (dataTableInstance) {
+      dataTableInstance.destroy();
+    }
+    
+    document.getElementById("studentRows").innerHTML = students.map((item) => `
+      <tr>
+        <td class="font-bold text-teal-800">${item.student_code}</td>
+        <td class="font-semibold text-slate-800">${item.full_name}</td>
+        <td class="text-slate-600">${item.parent_phone || ""}</td>
+        <td>${classBadges(item.classes)}</td>
+        <td class="space-x-1 whitespace-nowrap">
+          <button class="btn btn-muted !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick='openStudentForm(students.find(x=>x.id===${item.id}))'>Sửa</button>
+          <button class="btn btn-danger !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="deleteStudent(${item.id})">Ngưng</button>
+        </td>
+      </tr>
+    `).join("");
+
+    // Khởi tạo lại DataTable
+    dataTableInstance = $("#studentsTable").DataTable({
+      language: {
+        search: "Tìm kiếm:",
+        lengthMenu: "Hiển thị _MENU_ học sinh",
+        info: "Đang xem _START_ đến _END_ trong tổng số _TOTAL_ học sinh",
+        paginate: {
+          first: "Đầu",
+          last: "Cuối",
+          next: "Tiếp",
+          previous: "Trước"
+        }
+      },
+      pageLength: 10,
+      order: [[1, "asc"]], // Sắp xếp theo họ tên mặc định
+      retrieve: true
+    });
+
+    const studentOptions = students.map((s) => `<option value="${s.id}">${s.student_code} - ${s.full_name}</option>`).join("");
+    document.querySelector("#enrollmentForm [name='student_id']").innerHTML = studentOptions;
+  }
+
+  async function loadClassOptions() {
+    classes = await api("/api/classes?active=true");
+    document.querySelector("#enrollmentForm [name='class_ids']").innerHTML = classes.map((c) => `<option value="${c.id}">${c.name} - ${c.subject}</option>`).join("");
+
+    // Khởi tạo Select2 cho cả học sinh và lớp
+    $("[name='student_id']").select2({ placeholder: "Gõ để tìm mã hoặc tên...", width: "100%" });
+    $("[name='class_ids']").select2({ placeholder: "Chọn một hoặc nhiều lớp...", width: "100%" });
+  }
+
+  async function deleteStudent(id) {
+    if (!requireConfirm("Bạn có chắc muốn ngưng hoạt động học sinh này?")) return;
+    await api(`/api/students/${id}`, { method: "DELETE" });
+    toast("Đã cập nhật trạng thái học sinh.");
+    loadStudents();
+  }
+
+  document.getElementById("studentForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formDataJson(event.target);
+    const id = data.id;
+    delete data.id;
+    await api(id ? `/api/students/${id}` : "/api/students", { method: id ? "PUT" : "POST", body: JSON.stringify(data) });
+    closeStudentForm();
+    toast("Đã lưu thông tin học sinh thành công.");
+    loadStudents();
+  });
+
+  document.getElementById("enrollmentForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formDataJson(event.target);
+    await api("/api/enrollments", { method: "POST", body: JSON.stringify(data) });
+    event.target.reset();
+    event.target.elements.is_active.checked = true;
+    // Reset Select2
+    $("[name='student_id']").val(null).trigger("change");
+    $("[name='class_ids']").val(null).trigger("change");
+    toast("Đã gán học sinh vào lớp học thành công.");
+    loadStudents();
+  });
+
+  Promise.all([loadStudents(), loadClassOptions()]).catch((err) => toast(err.message, true));
+</script>
+{% endblock %}

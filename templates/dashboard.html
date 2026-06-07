@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Bộ lọc Tháng/Năm & Nút xuất báo cáo doanh thu -->
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+  <div class="flex flex-wrap items-center gap-4">
+    <div class="w-32">
+      <label class="label text-slate-700 font-semibold mb-1">Chọn tháng</label>
+      <select id="month" class="field rounded-lg border-slate-200">
+        <option value="1">Tháng 1</option>
+        <option value="2">Tháng 2</option>
+        <option value="3">Tháng 3</option>
+        <option value="4">Tháng 4</option>
+        <option value="5">Tháng 5</option>
+        <option value="6">Tháng 6</option>
+        <option value="7">Tháng 7</option>
+        <option value="8">Tháng 8</option>
+        <option value="9">Tháng 9</option>
+        <option value="10">Tháng 10</option>
+        <option value="11">Tháng 11</option>
+        <option value="12">Tháng 12</option>
+      </select>
+    </div>
+    <div class="w-32">
+      <label class="label text-slate-700 font-semibold mb-1">Chọn năm</label>
+      <input id="year" class="field rounded-lg border-slate-200" data-number="true" type="number" min="2000" />
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <a id="exportExcelBtn" class="btn btn-muted font-bold text-sm" href="#">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5 text-emerald-600 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      Xuất Excel
+    </a>
+    <a id="exportPdfBtn" class="btn btn-primary font-bold text-sm bg-teal-700 hover:bg-teal-800" href="#">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5 text-white mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      Xuất PDF
+    </a>
+  </div>
+</div>
+
+<!-- Thống kê tổng quan dạng khối -->
+<div class="grid gap-4 md:grid-cols-4">
+  <div class="panel metric"><div class="text-sm font-bold text-slate-500">Học sinh đang học</div><div id="mStudents" class="mt-2 text-3xl font-extrabold">0</div></div>
+  <div class="panel metric"><div class="text-sm font-bold text-slate-500">Lớp/Môn học</div><div id="mClasses" class="mt-2 text-3xl font-extrabold">0</div></div>
+  <div class="panel metric"><div class="text-sm font-bold text-slate-500">Buổi đã điểm danh</div><div id="mSessions" class="mt-2 text-3xl font-extrabold">0</div></div>
+  <div class="panel metric"><div class="text-sm font-bold text-slate-500">Doanh thu tháng</div><div id="mRevenue" class="mt-2 text-3xl font-extrabold">0</div></div>
+</div>
+
+<div class="mt-5 grid gap-5 lg:grid-cols-[1fr_340px]">
+  <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100">
+    <div>
+      <h2 class="text-lg font-extrabold text-slate-800">Biểu đồ doanh thu năm</h2>
+      <p class="text-sm text-slate-500 mt-0.5">Dữ liệu lấy từ các kỳ học phí đã chốt.</p>
+    </div>
+    <div class="mt-6 h-[330px]"><canvas id="revenueChart"></canvas></div>
+  </section>
+  <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100">
+    <h2 class="text-lg font-extrabold text-slate-800 border-b border-slate-100 pb-3">Thao tác nhanh</h2>
+    <div class="mt-4 grid gap-3">
+      <a class="btn btn-primary py-2.5 rounded-lg font-bold" href="/attendance">Điểm danh hôm nay</a>
+      <a class="btn btn-muted py-2.5 rounded-lg font-bold" href="/tuition">Chốt học phí</a>
+      <a class="btn btn-muted py-2.5 rounded-lg font-bold" href="/students">Thêm học sinh</a>
+      <a class="btn btn-muted py-2.5 rounded-lg font-bold" href="/settings">Sửa phiếu thu</a>
+    </div>
+    <div class="mt-6 rounded-lg bg-amber-50 border border-amber-100 p-4 text-sm text-amber-900">
+      Tất cả ngày tháng đang hiển thị theo múi giờ Việt Nam để tránh lệch ngày điểm danh.
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const defaultMonth = Number("{{ today.month }}");
+  const defaultYear = Number("{{ today.year }}");
+  
+  document.getElementById("month").value = defaultMonth;
+  document.getElementById("year").value = defaultYear;
+  
+  let chart;
+  
+  async function loadDashboard() {
+    const month = Number(document.getElementById("month").value);
+    const year = Number(document.getElementById("year").value);
+    
+    // Tải thông tin thống kê tổng quan
+    const summary = await api(`/api/dashboard/summary?month=${month}&year=${year}`);
+    setText("mStudents", summary.students);
+    setText("mClasses", summary.classes);
+    setText("mSessions", summary.sessions);
+    setText("mRevenue", formatMoney(summary.revenue));
+    
+    // Cập nhật link tải báo cáo
+    document.getElementById("exportExcelBtn").href = `/api/dashboard/export-excel?month=${month}&year=${year}`;
+    document.getElementById("exportPdfBtn").href = `/api/dashboard/export-pdf?month=${month}&year=${year}`;
+    
+    // Tải thông tin biểu đồ doanh thu năm
+    const revenue = await api(`/api/dashboard/revenue?year=${year}`);
+    const labels = revenue.map((r) => `Tháng ${r.month}`);
+    const data = revenue.map((r) => r.amount);
+    
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById("revenueChart"), {
+      type: "bar",
+      data: { 
+        labels, 
+        datasets: [{ 
+          label: "Doanh thu", 
+          data, 
+          backgroundColor: "#0f766e", 
+          borderRadius: 6 
+        }] 
+      },
+      options: { 
+        maintainAspectRatio: false, 
+        plugins: { 
+          legend: { display: false } 
+        }, 
+        scales: { 
+          y: { 
+            ticks: { callback: formatMoney } 
+          } 
+        } 
+      },
+    });
+  }
+  
+  document.getElementById("month").addEventListener("change", loadDashboard);
+  document.getElementById("year").addEventListener("change", loadDashboard);
+  
+  loadDashboard().catch((err) => toast(err.message, true));
+</script>
+{% endblock %}

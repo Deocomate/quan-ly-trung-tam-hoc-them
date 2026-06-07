@@ -1,0 +1,377 @@
+<!-- templates/classes.html -->
+{% extends "base.html" %}
+{% block content %}
+<section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+    <div>
+      <h2 class="text-xl font-extrabold text-slate-800">Danh sách lớp học</h2>
+      <p class="text-sm text-slate-500 mt-0.5">Quản lý danh sách lớp học, phân công giáo viên giảng dạy và cấu hình tính lương.</p>
+    </div>
+    <button class="btn btn-primary" onclick="openClassForm()">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+      </svg>
+      Thêm lớp/môn học
+    </button>
+  </div>
+  
+  <div class="mt-4 overflow-auto">
+    <table id="classesTable" class="table w-full">
+      <thead>
+        <tr>
+          <th class="font-bold text-slate-700">Tên lớp</th>
+          <th class="font-bold text-slate-700">Môn học</th>
+          <th class="font-bold text-slate-700">Giáo viên</th>
+          <th class="font-bold text-slate-700">Học phí/buổi (VNĐ)</th>
+          <th class="font-bold text-slate-700">Cách tính lương</th>
+          <th class="font-bold text-slate-700">Trạng thái</th>
+          <th class="font-bold text-slate-700">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody id="classRows"></tbody>
+    </table>
+  </div>
+</section>
+
+<div id="classModal" class="modal-backdrop hidden">
+  <form id="classForm" class="modal panel p-6 max-w-2xl bg-white rounded-xl shadow-lg border border-slate-200">
+    <h3 id="classFormTitle" class="text-xl font-extrabold text-slate-800 border-b border-slate-100 pb-3">Thêm lớp/môn</h3>
+    <input type="hidden" name="id" />
+    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Tên lớp</label>
+        <input class="field rounded-lg border-slate-200" name="name" placeholder="Ví dụ: Lớp A1" required />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Môn học</label>
+        <input class="field rounded-lg border-slate-200" name="subject" placeholder="Ví dụ: Toán" required />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Học phí/buổi (VNĐ)</label>
+        <input class="field rounded-lg border-slate-200" name="default_fee" data-number="true" type="number" min="0" placeholder="Ví dụ: 150000" required />
+      </div>
+      <div class="flex items-center sm:pt-6">
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 py-1 cursor-pointer">
+          <input name="is_active" type="checkbox" checked class="rounded text-teal-600 focus:ring-teal-500" /> Đang hoạt động
+        </label>
+      </div>
+      
+      <!-- Cấu hình Giáo viên & Lương (Nhiều giáo viên) -->
+      <div class="sm:col-span-2 border-t border-slate-100 pt-4 mt-2">
+        <div class="flex justify-between items-center mb-3">
+          <label class="label text-slate-700 font-extrabold block text-sm">Giáo viên & Cấu hình Lương</label>
+          <button type="button" class="btn btn-muted !py-1 !px-2.5 text-xs font-semibold" onclick="addTeacherAssignmentRow()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+            </svg> Thêm giáo viên
+          </button>
+        </div>
+        <div id="teacherAssignmentsContainer" class="space-y-3">
+          <!-- Dòng giáo viên sẽ được thêm động ở đây -->
+        </div>
+      </div>
+
+      <div class="sm:col-span-2">
+        <label class="label text-slate-700 font-semibold mb-1 block">Ghi chú thêm</label>
+        <textarea class="field rounded-lg border-slate-200 h-20" name="notes" placeholder="Nhập ghi chú chi tiết..."></textarea>
+      </div>
+    </div>
+    <div class="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+      <button type="button" class="btn btn-muted px-4" onclick="closeClassForm()">Hủy</button>
+      <button class="btn btn-primary px-5">Lưu lớp/môn</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let classes = [];
+  let teachers = [];
+  let dataTableInstance = null;
+
+  function addTeacherAssignmentRow(assignment = null) {
+    const container = document.getElementById("teacherAssignmentsContainer");
+    const rowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const row = document.createElement("div");
+    row.id = rowId;
+    row.className = "grid grid-cols-12 gap-2 items-center border border-slate-100 p-3 rounded-lg bg-slate-50/50 shadow-sm relative transition duration-150";
+
+    const options = teachers.map(t => `<option value="${t.id}">${t.full_name}</option>`).join("");
+
+    row.innerHTML = `
+      <div class="col-span-4">
+        <label class="text-[11px] font-bold text-slate-500 mb-0.5 block">Giáo viên</label>
+        <select class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-teacher" required>
+          <option value="">-- Chọn giáo viên --</option>
+          ${options}
+        </select>
+      </div>
+      <div class="col-span-2">
+        <label class="text-[11px] font-bold text-slate-500 mb-0.5 block">Vai trò</label>
+        <select class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-role">
+          <option value="main">Chính</option>
+          <option value="assistant">Phụ</option>
+        </select>
+      </div>
+      <div class="col-span-3">
+        <label class="text-[11px] font-bold text-slate-500 mb-0.5 block">Hình thức</label>
+        <select class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-salary-type" onchange="onRowSalaryTypeChange(this)">
+          <option value="fixed">Lương cứng</option>
+          <option value="coefficient">Hệ số DT</option>
+        </select>
+      </div>
+      <div class="col-span-2">
+        <label class="text-[11px] font-bold text-slate-500 mb-0.5 block rate-label">Mức (đ)</label>
+        <input type="number" step="any" min="0" class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-rate" required />
+      </div>
+      <div class="col-span-1 text-center pt-4">
+        <button type="button" class="text-rose-500 hover:text-rose-700 transition" onclick="removeTeacherAssignmentRow('${rowId}')">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+    `;
+
+    container.appendChild(row);
+
+    if (assignment) {
+      row.querySelector(".assignment-teacher").value = assignment.teacher_id;
+      row.querySelector(".assignment-role").value = assignment.role;
+      row.querySelector(".assignment-salary-type").value = assignment.salary_type;
+      
+      const rateInput = row.querySelector(".assignment-rate");
+      if (assignment.salary_type === "fixed") {
+        rateInput.value = assignment.fixed_salary_per_session;
+      } else {
+        rateInput.value = assignment.salary_coefficient;
+      }
+      onRowSalaryTypeChange(row.querySelector(".assignment-salary-type"));
+    } else {
+      row.querySelector(".assignment-rate").value = "450000";
+    }
+  }
+
+  function removeTeacherAssignmentRow(rowId) {
+    const row = document.getElementById(rowId);
+    if (row) {
+      row.remove();
+    }
+  }
+
+  function onRowSalaryTypeChange(selectEl) {
+    const row = selectEl.closest('.grid');
+    const rateInput = row.querySelector('.assignment-rate');
+    const rateLabel = row.querySelector('.rate-label');
+    if (selectEl.value === 'fixed') {
+      rateLabel.textContent = 'Mức (đ)';
+      rateInput.placeholder = '450000';
+      if (!rateInput.value || rateInput.value === '1' || rateInput.value === '1.0' || parseFloat(rateInput.value) <= 10) {
+        rateInput.value = '450000';
+      }
+    } else {
+      rateLabel.textContent = 'Hệ số';
+      rateInput.placeholder = '1.0';
+      if (!rateInput.value || rateInput.value === '450000' || parseFloat(rateInput.value) > 10) {
+        rateInput.value = '1.0';
+      }
+    }
+  }
+
+  function openClassForm(item = null) {
+    const form = document.getElementById("classForm");
+    form.reset();
+    form.elements.id.value = item?.id || "";
+    form.elements.name.value = item?.name || "";
+    form.elements.subject.value = item?.subject || "";
+    form.elements.default_fee.value = item?.default_fee || 0;
+    form.elements.notes.value = item?.notes || "";
+    form.elements.is_active.checked = item ? item.is_active : true;
+    
+    const container = document.getElementById("teacherAssignmentsContainer");
+    container.innerHTML = "";
+    
+    if (item && item.assignments && item.assignments.length > 0) {
+      item.assignments.forEach(ass => addTeacherAssignmentRow(ass));
+    } else if (item && item.teacher_id) {
+      addTeacherAssignmentRow({
+        teacher_id: item.teacher_id,
+        role: "main",
+        salary_type: item.salary_type || "fixed",
+        fixed_salary_per_session: item.fixed_salary_per_session || 450000,
+        salary_coefficient: item.salary_coefficient || 1.0
+      });
+    } else {
+      addTeacherAssignmentRow();
+    }
+    
+    setText("classFormTitle", item ? "Sửa lớp/môn học" : "Thêm lớp/môn học");
+    document.getElementById("classModal").classList.remove("hidden");
+  }
+
+  function closeClassForm() { 
+    document.getElementById("classModal").classList.add("hidden"); 
+  }
+
+  async function loadClasses() {
+    classes = await api("/api/classes");
+    
+    if (dataTableInstance) {
+      dataTableInstance.destroy();
+    }
+    
+    document.getElementById("classRows").innerHTML = classes.map((item) => {
+      let teachersDisplay = "";
+      if (item.assignments && item.assignments.length > 0) {
+        teachersDisplay = item.assignments.map(ass => {
+          const t = teachers.find(x => x.id === ass.teacher_id);
+          const tName = t ? t.full_name : `GV #${ass.teacher_id}`;
+          const roleBadge = ass.role === "main" 
+            ? `<span class="px-1.5 py-0.5 text-[10px] font-bold bg-teal-50 text-teal-700 rounded border border-teal-200 ml-1">Chính</span>`
+            : `<span class="px-1.5 py-0.5 text-[10px] font-bold bg-slate-50 text-slate-600 rounded border border-slate-200 ml-1">Phụ</span>`;
+          return `<div class="flex items-center justify-between mb-1 py-0.5">
+            <span class="font-medium text-slate-700">${tName}</span>
+            ${roleBadge}
+          </div>`;
+        }).join("");
+      } else {
+        const t = item.teacher_id ? teachers.find(x => x.id === item.teacher_id) : null;
+        teachersDisplay = t 
+          ? `<div class="flex items-center justify-between py-0.5">
+               <span class="font-medium text-slate-700">${t.full_name}</span>
+               <span class="px-1.5 py-0.5 text-[10px] font-bold bg-teal-50 text-teal-700 rounded border border-teal-200 ml-1">Chính (Cũ)</span>
+             </div>`
+          : `<span class="text-slate-400 text-xs">Chưa phân công</span>`;
+      }
+        
+      let salaryDisplay = "";
+      if (item.assignments && item.assignments.length > 0) {
+        salaryDisplay = item.assignments.map(ass => {
+          const t = teachers.find(x => x.id === ass.teacher_id);
+          const tName = t ? t.full_name.split(" ").slice(-1)[0] : `GV`;
+          const salStr = ass.salary_type === "fixed"
+            ? `${formatMoney(ass.fixed_salary_per_session)}`
+            : `Doanh thu (HS: ${ass.salary_coefficient})`;
+          return `<div class="text-xs text-slate-600 mb-1">
+            <span class="font-semibold">${tName}:</span> ${salStr}
+          </div>`;
+        }).join("");
+      } else {
+        const salStr = item.salary_type === "fixed"
+          ? `${formatMoney(item.fixed_salary_per_session)}`
+          : `Doanh thu (HS: ${item.salary_coefficient})`;
+        salaryDisplay = `<span class="text-xs text-slate-600 font-semibold">${salStr}</span>`;
+      }
+
+      return `
+        <tr>
+          <td class="font-bold text-teal-800">${item.name}</td>
+          <td class="font-semibold text-slate-800">${item.subject}</td>
+          <td>${teachersDisplay}</td>
+          <td class="font-bold text-slate-700">${formatMoney(item.default_fee)}</td>
+          <td>${salaryDisplay}</td>
+          <td>
+            <span class="status-pill ${item.is_active ? "status-active" : "status-muted"}">
+              ${item.is_active ? "Đang dạy" : "Ngưng"}
+            </span>
+          </td>
+          <td class="space-x-1 whitespace-nowrap">
+            <button class="btn btn-muted !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick='openClassForm(classes.find(x=>x.id===${item.id}))'>Sửa</button>
+            <button class="btn btn-danger !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="deleteClass(${item.id})">Ngưng</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    dataTableInstance = $("#classesTable").DataTable({
+      language: {
+        url: "https://cdn.datatables.net/plug-ins/1.13.7/i18n/vi.json"
+      },
+      pageLength: 10,
+      order: [[0, "asc"]],
+      retrieve: true
+    });
+  }
+
+  async function deleteClass(id) {
+    if (!requireConfirm("Bạn có chắc chắn muốn ngưng hoạt động lớp/môn học này?")) return;
+    await api(`/api/classes/${id}`, { method: "DELETE" });
+    toast("Đã cập nhật trạng thái lớp/môn học.");
+    loadClasses();
+  }
+
+  document.getElementById("classForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formDataJson(event.target);
+    const id = data.id;
+    delete data.id;
+    
+    data.default_fee = parseInt(data.default_fee) || 0;
+
+    const assignments = [];
+    const container = document.getElementById("teacherAssignmentsContainer");
+    const rows = container.querySelectorAll(".grid");
+    rows.forEach(row => {
+      const teacherIdVal = row.querySelector(".assignment-teacher").value;
+      if (!teacherIdVal) return;
+
+      const teacher_id = parseInt(teacherIdVal);
+      const role = row.querySelector(".assignment-role").value;
+      const salary_type = row.querySelector(".assignment-salary-type").value;
+      const rate = parseFloat(row.querySelector(".assignment-rate").value) || 0;
+
+      const ass = {
+        teacher_id,
+        role,
+        salary_type,
+        fixed_salary_per_session: salary_type === "fixed" ? Math.round(rate) : 450000,
+        salary_coefficient: salary_type === "coefficient" ? rate : 1.0
+      };
+      assignments.push(ass);
+    });
+
+    data.assignments = assignments;
+
+    if (assignments.length > 0) {
+      const mainAss = assignments.find(a => a.role === "main") || assignments[0];
+      data.teacher_id = mainAss.teacher_id;
+      data.salary_type = mainAss.salary_type;
+      data.fixed_salary_per_session = mainAss.fixed_salary_per_session;
+      data.salary_coefficient = mainAss.salary_coefficient;
+    } else {
+      data.teacher_id = null;
+      data.salary_type = "fixed";
+      data.fixed_salary_per_session = 450000;
+      data.salary_coefficient = 1.0;
+    }
+
+    try {
+      await api(id ? `/api/classes/${id}` : "/api/classes", { 
+        method: id ? "PUT" : "POST", 
+        body: JSON.stringify(data) 
+      });
+      closeClassForm();
+      toast("Đã lưu thông tin lớp/môn học thành công.");
+      loadClasses();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  async function loadTeachers() {
+    try {
+      teachers = await api("/api/teachers?active=true");
+    } catch (err) {
+      console.error("Lỗi khi tải giáo viên:", err);
+    }
+  }
+
+  async function init() {
+    await loadTeachers();
+    await loadClasses();
+  }
+
+  init().catch((err) => toast(err.message, true));
+</script>
+{% endblock %}

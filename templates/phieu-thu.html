@@ -1,0 +1,219 @@
+<!-- templates/phieu-thu.html -->
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Thông báo học phí</title>
+    <style>
+      @page {
+        size: A4 landscape;
+        margin: 10mm;
+      }
+      body {
+        font-family: "Times New Roman", Times, serif;
+        color: #000;
+        background: #fff;
+        margin: 0;
+        padding: 0;
+      }
+      .phieu-thu-wrapper {
+        page-break-inside: avoid;
+        page-break-after: always;
+        height: 190mm; /* Chiều cao vùng in khả dụng của A4 ngang (210mm - 20mm margin) */
+        display: flex;
+        flex-direction: column;
+        justify-content: center; /* Căn giữa dọc */
+        align-items: center; /* Căn giữa ngang */
+        box-sizing: border-box;
+      }
+      .phieu-thu {
+        width: 270mm; /* Chiều ngang của A4 ngang */
+        border: 2px solid #000;
+        padding: 2px;
+        box-sizing: border-box;
+        background: #fff;
+      }
+      .inner {
+        border: 1px solid #000;
+      }
+      .header {
+        display: flex;
+        border-bottom: 1px solid #000;
+      }
+      .logo {
+        width: 58mm;
+        border-right: 1px solid #000;
+        padding: 8px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 15px;
+        line-height: 1.15;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        white-space: pre-line;
+      }
+      .center-info {
+        flex: 1;
+        padding: 8px;
+        font-size: 15px;
+        line-height: 1.25;
+      }
+      .center-name {
+        font-weight: bold;
+        text-transform: uppercase;
+      }
+      .title {
+        text-align: center;
+        font-weight: bold;
+        font-size: 22px;
+        text-transform: uppercase;
+        padding: 8px;
+        border-bottom: 1px solid #000;
+      }
+      .body {
+        display: flex;
+      }
+      .left {
+        width: 70%;
+        border-right: 1px solid #000;
+      }
+      .right {
+        width: 30%;
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .student-line {
+        padding: 8px;
+        font-size: 16px;
+        line-height: 1.25;
+      }
+      .student-head {
+        display: flex;
+        font-weight: bold;
+      }
+      .student-name {
+        flex: 1;
+        text-align: center;
+        font-size: 18px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 15px;
+        text-align: center;
+      }
+      th,
+      td {
+        border: 1px solid #000;
+        padding: 5px;
+        text-align: center;
+      }
+      th {
+        font-weight: bold;
+      }
+      .subject {
+        font-weight: bold;
+        text-align: left;
+        padding-left: 8px;
+      }
+      .payment-note {
+        padding: 8px;
+        font-size: 15px;
+        line-height: 1.25;
+      }
+      .payment-content {
+        font-weight: bold;
+        font-size: 18px;
+      }
+      .qr {
+        max-width: 100%;
+        max-height: 68mm;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Lặp qua danh sách toàn bộ phiếu thu cần in -->
+    {% for record in records %}
+    <div class="phieu-thu-wrapper">
+      <div class="phieu-thu">
+        <div class="inner">
+          <div class="header">
+            <div class="logo">
+              {% if logo_path %}
+              <img src="{{ logo_path }}" alt="Logo" style="max-height: 35mm; max-width: 100%; object-fit: contain; display: block; margin: 0 auto;" />
+              {% else %}
+              <div style="font-size: 14px; line-height: 1.2;">{{ settings.center_logo_text }}</div>
+              {% endif %}
+            </div>
+            <div class="center-info">
+              <div class="center-name">{{ settings.center_name }}</div>
+              <div>{{ settings.center_address }}</div>
+              <div>{{ settings.center_hotline }}</div>
+            </div>
+          </div>
+          <div class="title">Thông báo học phí tháng {{ record.month }}</div>
+          <div class="body">
+            <div class="left">
+              <div class="student-line">
+                <div class="student-head">
+                  <span style="width: 180px">Kính gửi: Phụ huynh em:</span>
+                  <span class="student-name">{{ record.student.full_name }}</span>
+                  <span style="width: 80px; text-align: right">{{ record.student.student_code }}</span>
+                </div>
+                <div style="margin-top: 4px">{{ settings.receipt_intro }}</div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 25%">Môn học</th>
+                    <th style="width: 15%">Buổi học</th>
+                    <th style="width: 20%">Học phí</th>
+                    <th style="width: 20%">Tổng tiền</th>
+                    <th style="width: 20%">Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in record.items %}
+                  <tr>
+                    <td class="subject">{{ item.subject }}</td>
+                    <td>{{ item.sessions }}</td>
+                    <td>{{ item.unit_fee | currency }}</td>
+                    <td>{{ item.amount | currency }}</td>
+                    <td>{{ item.notes or "" }}</td>
+                  </tr>
+                  {% endfor %}
+                  <tr>
+                    <td colspan="3">Tổng tiền (VNĐ) HỌC PHÍ</td>
+                    <td><strong>{{ record.total_amount | currency }}</strong></td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td colspan="3"><strong>SỐ TIỀN PHẢI NỘP (VNĐ)</strong></td>
+                    <td><strong>{{ record.total_amount | currency }}</strong></td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="payment-note">
+                <div>{{ settings.payment_deadline }}</div>
+                <div style="margin-top: 4px">
+                  <span style="display: inline-block; width: 180px">Nội dung chuyển khoản:</span>
+                  <span class="payment-content">{{ get_payment_content(record) }}</span>
+                </div>
+                <div style="margin-top: 4px">{{ settings.receipt_footer | safe }}</div>
+              </div>
+            </div>
+            <div class="right">
+              <img class="qr" src="{{ qr_path }}" alt="Mã QR thanh toán" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </body>
+</html>

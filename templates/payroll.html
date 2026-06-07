@@ -1,0 +1,269 @@
+<!-- templates/payroll.html -->
+{% extends "base.html" %}
+{% block content %}
+<section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+    <div>
+      <h2 class="text-xl font-extrabold text-slate-800">Tính & Chốt lương Giáo viên</h2>
+      <p class="text-sm text-slate-500 mt-0.5">Tạm tính lương theo số buổi dạy thực tế, doanh thu lớp học và chốt lịch sử lương.</p>
+    </div>
+    
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-semibold text-slate-600">Tháng</label>
+        <input id="payrollMonth" class="field rounded-lg border-slate-200 py-1.5 px-3 w-20" type="number" min="1" max="12" value="{{ today.month }}" onchange="fetchPayroll()" />
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-semibold text-slate-600">Năm</label>
+        <input id="payrollYear" class="field rounded-lg border-slate-200 py-1.5 px-3 w-24" type="number" min="2000" value="{{ today.year }}" onchange="fetchPayroll()" />
+      </div>
+      <button id="exportAllPdfBtn" class="btn btn-muted border border-slate-200 py-2 px-4 rounded-lg flex items-center gap-1.5 font-bold text-slate-700 bg-white hover:bg-slate-50" onclick="exportAllPayrollPdf()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        Xuất toàn bộ PDF
+      </button>
+      <button id="lockBtn" class="btn btn-primary font-bold py-2 px-4 rounded-lg hidden" onclick="lockPayroll()">
+        Chốt bảng lương
+      </button>
+    </div>
+  </div>
+
+  <div id="lockedNotice" class="mb-4 hidden rounded-lg bg-teal-50 border border-teal-200 p-3.5 text-sm font-bold text-teal-800 flex items-center gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-teal-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    </svg>
+    Bảng lương của kỳ này đã được khóa. Mọi dữ liệu hiển thị bên dưới là lịch sử cố định.
+  </div>
+
+  <div class="overflow-auto mt-4">
+    <table class="table w-full">
+      <thead>
+        <tr>
+          <th class="font-bold text-slate-700">Tên Giáo viên</th>
+          <th class="font-bold text-slate-700 text-center">Số lớp dạy</th>
+          <th class="font-bold text-slate-700 text-center">Số buổi dạy</th>
+          <th class="font-bold text-slate-700 text-right">Tổng doanh thu lớp</th>
+          <th class="font-bold text-slate-700 text-right">Lương thực nhận (VNĐ)</th>
+          <th class="font-bold text-slate-700 text-center">Trạng thái</th>
+          <th class="font-bold text-slate-700 text-center">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody id="payrollRows"></tbody>
+      <tfoot>
+        <tr class="bg-slate-50 font-bold text-slate-800 border-t-2 border-slate-200">
+          <td>TỔNG CỘNG</td>
+          <td id="totalClasses" class="text-center">-</td>
+          <td id="totalSessions" class="text-center">-</td>
+          <td id="totalRevenue" class="text-right">-</td>
+          <td id="totalSalary" class="text-right text-red-700 font-extrabold">-</td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>
+
+<!-- Detail Modal -->
+<div id="detailModal" class="modal-backdrop hidden">
+  <div class="modal panel p-6 max-w-3xl bg-white rounded-xl shadow-lg border border-slate-200">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+      <h3 class="text-xl font-extrabold text-slate-800">Chi tiết lương Giáo viên</h3>
+      <button class="text-slate-400 hover:text-slate-600" onclick="closeDetailModal()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    
+    <div class="mb-4 grid grid-cols-2 gap-4 text-sm bg-slate-50 p-3 rounded-lg border border-slate-100">
+      <div><span class="font-semibold text-slate-500">Giáo viên:</span> <span id="detailTeacherName" class="font-bold text-slate-800"></span></div>
+      <div><span class="font-semibold text-slate-500">Kỳ lương:</span> <span id="detailPeriod" class="font-semibold text-slate-800"></span></div>
+    </div>
+
+    <div class="overflow-auto max-h-80">
+      <table class="table w-full text-sm">
+        <thead>
+          <tr class="bg-slate-100 text-slate-700 font-bold">
+            <th>Lớp / Môn học</th>
+            <th class="text-center">Số buổi dạy</th>
+            <th class="text-right">Doanh thu lớp</th>
+            <th>Hình thức tính</th>
+            <th>Đơn giá / Hệ số</th>
+            <th class="text-right">Thành tiền (VNĐ)</th>
+          </tr>
+        </thead>
+        <tbody id="detailRows"></tbody>
+      </table>
+    </div>
+
+    <div class="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+      <button class="btn btn-muted px-4" onclick="closeDetailModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let payrollData = [];
+  let isLocked = false;
+
+  async function fetchPayroll() {
+    const month = document.getElementById("payrollMonth").value;
+    const year = document.getElementById("payrollYear").value;
+
+    if (!month || !year) return;
+
+    try {
+      const data = await api(`/api/payroll/preview?month=${month}&year=${year}`);
+      payrollData = data.records;
+      isLocked = data.is_locked;
+
+      document.getElementById("lockedNotice").classList.toggle("hidden", !isLocked);
+      const lockBtn = document.getElementById("lockBtn");
+      if (isLocked) {
+        lockBtn.classList.add("hidden");
+      } else {
+        lockBtn.classList.remove("hidden");
+      }
+
+      renderPayrollTable();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function renderPayrollTable() {
+    const rows = document.getElementById("payrollRows");
+    let totalClassesCount = 0;
+    let totalSessionsCount = 0;
+    let totalRevenueSum = 0;
+    let totalSalarySum = 0;
+
+    if (payrollData.length === 0) {
+      rows.innerHTML = `<tr><td colspan="7" class="text-slate-500 py-8 text-center">Không có dữ liệu giáo viên hoặc tính lương trong kỳ này.</td></tr>`;
+      document.getElementById("totalClasses").textContent = "-";
+      document.getElementById("totalSessions").textContent = "-";
+      document.getElementById("totalRevenue").textContent = "-";
+      document.getElementById("totalSalary").textContent = "-";
+      return;
+    }
+
+    rows.innerHTML = payrollData.map(p => {
+      const classesCount = p.classes.length;
+      const sessionsCount = p.classes.reduce((sum, c) => sum + c.sessions, 0);
+      const revenueSum = p.classes.reduce((sum, c) => sum + c.revenue, 0);
+      
+      totalClassesCount += classesCount;
+      totalSessionsCount += sessionsCount;
+      totalRevenueSum += revenueSum;
+      totalSalarySum += p.total_salary;
+
+      const statusBadge = isLocked 
+        ? `<span class="inline-block bg-teal-50 text-teal-700 text-xs px-2 py-0.5 rounded font-bold border border-teal-100">Đã chốt</span>`
+        : `<span class="inline-block bg-amber-50 text-amber-700 text-xs px-2 py-0.5 rounded font-bold border border-amber-100">Tạm tính</span>`;
+
+      // Nút in PDF hoặc in phiếu tạm
+      const pdfBtn = isLocked 
+        ? `<button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="downloadPayrollPdf(${p.teacher_id})">In phiếu lương</button>`
+        : `<button class="btn border border-slate-200 !min-height-0 !py-1 !px-2.5 text-xs text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-200 font-semibold" onclick="downloadPayrollPdf(${p.teacher_id})">In phiếu tạm</button>`;
+
+      return `
+        <tr>
+          <td class="font-bold text-slate-800">${p.teacher_name}</td>
+          <td class="text-center font-semibold text-slate-600">${classesCount}</td>
+          <td class="text-center font-mono">${sessionsCount}</td>
+          <td class="text-right font-mono text-slate-700">${formatMoney(revenueSum)}</td>
+          <td class="text-right font-mono font-bold text-slate-800">${formatMoney(p.total_salary)}</td>
+          <td class="text-center">${statusBadge}</td>
+          <td class="text-center">
+            <div class="flex justify-center gap-1.5">
+              <button class="btn btn-muted border border-slate-200 !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="viewDetails(${p.teacher_id})">Chi tiết</button>
+              ${pdfBtn}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    document.getElementById("totalClasses").textContent = totalClassesCount;
+    document.getElementById("totalSessions").textContent = totalSessionsCount;
+    document.getElementById("totalRevenue").textContent = formatMoney(totalRevenueSum);
+    document.getElementById("totalSalary").textContent = formatMoney(totalSalarySum);
+  }
+
+  function viewDetails(teacherId) {
+    const teacher = payrollData.find(p => p.teacher_id === teacherId);
+    if (!teacher) return;
+
+    document.getElementById("detailTeacherName").textContent = teacher.teacher_name;
+    const month = document.getElementById("payrollMonth").value;
+    const year = document.getElementById("payrollYear").value;
+    document.getElementById("detailPeriod").textContent = `Tháng ${month}/${year}`;
+
+    const rows = document.getElementById("detailRows");
+    rows.innerHTML = teacher.classes.map(c => {
+      const typeStr = c.salary_type === "fixed" ? "Lương cứng" : "Doanh thu";
+      const rateStr = c.salary_type === "fixed" ? formatMoney(c.applied_rate) : c.applied_rate.toFixed(2);
+      const revStr = c.salary_type === "fixed" ? "-" : formatMoney(c.revenue);
+
+      return `
+        <tr>
+          <td class="font-bold text-slate-800">${c.class_name}</td>
+          <td class="text-center font-mono">${c.sessions}</td>
+          <td class="text-right font-mono">${revStr}</td>
+          <td>${typeStr}</td>
+          <td class="font-mono text-center">${rateStr}</td>
+          <td class="text-right font-mono font-bold text-slate-800">${formatMoney(c.amount)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    document.getElementById("detailModal").classList.remove("hidden");
+  }
+
+  function closeDetailModal() {
+    document.getElementById("detailModal").classList.add("hidden");
+  }
+
+  async function lockPayroll() {
+    const month = document.getElementById("payrollMonth").value;
+    const year = document.getElementById("payrollYear").value;
+
+    if (!confirm(`Bạn có chắc chắn muốn chốt khóa bảng lương Tháng ${month}/${year}? Sau khi chốt, dữ liệu tính toán sẽ được khóa lịch sử cố định.`)) return;
+
+    try {
+      await api("/api/payroll/lock", {
+        method: "POST",
+        body: JSON.stringify({
+          month: parseInt(month),
+          year: parseInt(year)
+        })
+      });
+      toast("Đã chốt khóa bảng lương kỳ thành công.");
+      fetchPayroll();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function downloadPayrollPdf(teacherId) {
+    const month = document.getElementById("payrollMonth").value;
+    const year = document.getElementById("payrollYear").value;
+    if (!month || !year) return;
+    window.open(`/api/payroll/export-pdf?month=${month}&year=${year}&teacher_id=${teacherId}`, "_blank");
+  }
+
+  function exportAllPayrollPdf() {
+    const month = document.getElementById("payrollMonth").value;
+    const year = document.getElementById("payrollYear").value;
+    if (!month || !year) return;
+    window.open(`/api/payroll/export-pdf?month=${month}&year=${year}`, "_blank");
+  }
+
+  // Khởi chạy
+  fetchPayroll();
+</script>
+{% endblock %}

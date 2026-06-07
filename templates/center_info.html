@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-5 xl:grid-cols-1">
+  <section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100">
+    <div class="border-b border-slate-100 pb-3 mb-5">
+      <h2 class="text-xl font-extrabold text-slate-800">Quản lý thông tin trung tâm</h2>
+      <p class="text-sm text-slate-500 mt-1">Cập nhật các thông tin cơ bản, pháp lý và liên hệ của trung tâm để phục vụ vận hành và in ấn.</p>
+    </div>
+    <form id="centerInfoForm" class="mt-5 grid gap-4 md:grid-cols-2">
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Tên trung tâm</label>
+        <input class="field rounded-lg border-slate-200" name="center_name" required />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Hotline</label>
+        <input class="field rounded-lg border-slate-200" name="center_hotline" required />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Số điện thoại liên hệ</label>
+        <input class="field rounded-lg border-slate-200" name="center_phone" />
+      </div>
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Địa chỉ Email</label>
+        <input class="field rounded-lg border-slate-200" name="center_email" type="email" />
+      </div>
+      <div class="md:col-span-2">
+        <label class="label text-slate-700 font-semibold mb-1 block">Liên hệ Zalo</label>
+        <input class="field rounded-lg border-slate-200" name="center_zalo" />
+      </div>
+      <div class="md:col-span-2">
+        <label class="label text-slate-700 font-semibold mb-1 block">Địa chỉ trung tâm</label>
+        <textarea class="field rounded-lg border-slate-200" name="center_address" rows="2" required></textarea>
+      </div>
+      
+      <div class="md:col-span-2 flex justify-end">
+        <button class="btn btn-primary py-2.5 px-6 rounded-lg font-bold">Lưu thông tin</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const fieldNames = [
+    "center_name",
+    "center_hotline",
+    "center_phone",
+    "center_email",
+    "center_zalo",
+    "center_address"
+  ];
+
+  async function loadCenterSettings() {
+    const settings = await api("/api/settings");
+    const form = document.getElementById("centerInfoForm");
+    for (const name of fieldNames) {
+      if (form.elements[name]) {
+        form.elements[name].value = settings[name] || "";
+      }
+    }
+  }
+
+  document.getElementById("centerInfoForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = fieldNames.map((key) => ({
+      key,
+      value: String(event.target.elements[key]?.value || ""),
+    }));
+    await api("/api/settings", { method: "PUT", body: JSON.stringify(payload) });
+    toast("Đã lưu thông tin trung tâm thành công.");
+  });
+
+  loadCenterSettings().catch((err) => toast(err.message, true));
+</script>
+{% endblock %}

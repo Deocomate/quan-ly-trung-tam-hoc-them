@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  /* CSS riêng cho bảng điểm danh dạng Grid để cố định cột tên */
+  .table-grid th, .table-grid td {
+    padding: 8px 6px;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #e2e8f0;
+  }
+  .table-grid th.sticky-col, .table-grid td.sticky-col {
+    position: sticky;
+    left: 0;
+    background: #ffffff;
+    z-index: 10;
+    text-align: left;
+    min-width: 220px;
+    box-shadow: 4px 0 8px -3px rgba(0, 0, 0, 0.08);
+  }
+  .table-grid th.sticky-col { 
+    background: #f8fafc; 
+    z-index: 11; 
+  }
+  
+  /* Hover effects for entire rows */
+  .table-grid tbody tr:hover td {
+    background-color: #f8fafc;
+  }
+  .table-grid tbody tr:hover td.sticky-col {
+    background-color: #f8fafc;
+  }
+  
+  /* Custom checkbox for attendance */
+  .attendance-checkbox {
+    width: 20px;
+    height: 20px;
+    accent-color: #0F766E; /* Teal primary color */
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+  .attendance-checkbox:active {
+    transform: scale(0.9);
+  }
+
+  /* Custom Scrollbar */
+  .overflow-auto::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .overflow-auto::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  .overflow-auto::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  .overflow-auto::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+    border-radius: 4px;
+  }
+
+  /* Teacher attendance cell styles */
+  .teacher-att-cell {
+    width: 28px;
+    height: 28px;
+    line-height: 26px;
+    border-radius: 6px;
+    font-weight: 800;
+    font-size: 13px;
+    display: inline-block;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+    border: 1px solid #cbd5e1;
+  }
+  .teacher-att-empty {
+    background-color: #f8fafc;
+    color: #94a3b8;
+    border-color: #e2e8f0;
+  }
+  .teacher-att-empty:hover {
+    background-color: #e2e8f0;
+  }
+  .teacher-att-P {
+    background-color: #d1fae5;
+    color: #065f46;
+    border-color: #a7f3d0;
+  }
+  .teacher-att-P:hover {
+    background-color: #a7f3d0;
+  }
+  .teacher-att-V {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+  }
+  .teacher-att-V:hover {
+    background-color: #fca5a5;
+  }
+  .teacher-att-M {
+    background-color: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+  }
+  .teacher-att-M:hover {
+    background-color: #fde68a;
+  }
+</style>
+
+<div class="flex gap-2 border-b border-slate-200 mb-4 bg-white p-2 rounded-lg shadow-sm">
+  <button id="btnTabStudent" class="px-4 py-2 text-sm font-bold border-b-2 border-teal-600 text-teal-600 transition" onclick="switchTab('student')">
+    Điểm danh Học sinh
+  </button>
+  <button id="btnTabTeacher" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition" onclick="switchTab('teacher')">
+    Điểm danh Giáo viên
+  </button>
+</div>
+
+<section class="panel p-5">
+  <div class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-100 pb-4">
+    <div>
+      <h2 id="attendanceTitle" class="text-xl font-extrabold text-slate-800">Điểm danh Học sinh</h2>
+      <p class="text-sm text-slate-500 mt-1">Nhấp trực tiếp vào ô ngày để cập nhật trạng thái. Thay đổi được lưu tự động (Real-time).</p>
+    </div>
+    <div id="attendanceLegend" class="flex flex-wrap items-center gap-4 text-xs font-semibold bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+      <!-- Dynamic legend chèn từ Javascript -->
+    </div>
+  </div>
+
+  <div class="mt-5 grid gap-4 sm:grid-cols-3">
+    <div>
+      <label class="label text-slate-700 font-semibold mb-1">Lớp/Môn học</label>
+      <select id="attendanceClass" class="field w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"></select>
+    </div>
+    <div>
+      <label class="label text-slate-700 font-semibold mb-1">Tháng (1 - 12)</label>
+      <input id="attendanceMonth" class="field w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500" type="number" min="1" max="12" />
+    </div>
+    <div>
+      <label class="label text-slate-700 font-semibold mb-1">Năm</label>
+      <input id="attendanceYear" class="field w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500" type="number" min="2000" />
+    </div>
+  </div>
+
+  <div id="lockedNotice" class="mt-4 hidden rounded-lg bg-teal-50 border border-teal-200 p-3 text-sm font-bold text-teal-800 flex items-center gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-teal-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    Kỳ học phí đã chốt. Bạn vẫn có thể điểm danh và chốt học phí lại để cập nhật.
+  </div>
+
+  <div class="mt-5 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+    <div class="overflow-auto relative" style="max-height: 65vh;">
+      <table class="table table-grid w-full border-collapse">
+        <thead id="gridHead" class="bg-slate-50 text-slate-700 font-semibold"></thead>
+        <tbody id="gridBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let isLocked = false;
+  let currentYear = {{ today.year }};
+  let currentMonth = {{ today.month }};
+  let currentTab = "student";
+
+  function getDaysInMonth(month, year) {
+    return new Date(year, month, 0).getDate();
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    const btnStudent = document.getElementById("btnTabStudent");
+    const btnTeacher = document.getElementById("btnTabTeacher");
+    const title = document.getElementById("attendanceTitle");
+    
+    if (tab === "student") {
+      btnStudent.className = "px-4 py-2 text-sm font-bold border-b-2 border-teal-600 text-teal-600 transition";
+      btnTeacher.className = "px-4 py-2 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition";
+      title.textContent = "Điểm danh Học sinh";
+    } else {
+      btnStudent.className = "px-4 py-2 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition";
+      btnTeacher.className = "px-4 py-2 text-sm font-bold border-b-2 border-teal-600 text-teal-600 transition";
+      title.textContent = "Điểm danh Giáo viên";
+    }
+    
+    localStorage.setItem("lastAttendanceTab", tab);
+    updateLegend();
+    fetchGrid();
+  }
+
+  function updateLegend() {
+    const legend = document.getElementById("attendanceLegend");
+    if (currentTab === "student") {
+      legend.innerHTML = `
+        <div class="flex items-center gap-1.5">
+          <input type="checkbox" checked disabled class="attendance-checkbox" style="width: 16px; height: 16px; accent-color: #0F766E;" />
+          <span class="text-slate-600">Có mặt / Đi học muộn</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <input type="checkbox" disabled class="attendance-checkbox" style="width: 16px; height: 16px; accent-color: #0F766E;" />
+          <span class="text-slate-600">Vắng mặt / Chưa điểm danh</span>
+        </div>
+      `;
+    } else {
+      legend.innerHTML = `
+        <div class="flex items-center gap-1.5">
+          <span class="teacher-att-cell teacher-att-P text-center" style="width: 20px; height: 20px; line-height: 18px; font-size: 11px;">P</span>
+          <span class="text-slate-600">Có mặt</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="teacher-att-cell teacher-att-V text-center" style="width: 20px; height: 20px; line-height: 18px; font-size: 11px;">V</span>
+          <span class="text-slate-600">Vắng mặt</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="teacher-att-cell teacher-att-M text-center" style="width: 20px; height: 20px; line-height: 18px; font-size: 11px;">M</span>
+          <span class="text-slate-600">Đi muộn</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="teacher-att-cell teacher-att-empty text-center" style="width: 20px; height: 20px; line-height: 18px; font-size: 11px;">-</span>
+          <span class="text-slate-600">Chưa điểm danh</span>
+        </div>
+      `;
+    }
+  }
+
+  async function loadClasses() {
+    const classes = await api("/api/classes?active=true");
+    const select = document.getElementById("attendanceClass");
+    select.innerHTML = classes.map((c) => `<option value="${c.id}">${c.name} - ${c.subject}</option>`).join("");
+    
+    // Khôi phục state từ localStorage
+    const savedClass = localStorage.getItem("lastAttendanceClassId");
+    if (savedClass && classes.some(c => c.id == savedClass)) {
+      select.value = savedClass;
+    }
+
+    // Khởi tạo Select2
+    $("#attendanceClass").select2({
+      placeholder: "Gõ để tìm kiếm lớp...",
+      width: '100%'
+    });
+  }
+
+  function initFilters() {
+    const monthInput = document.getElementById("attendanceMonth");
+    const yearInput = document.getElementById("attendanceYear");
+    
+    const savedMonth = localStorage.getItem("lastAttendanceMonth");
+    const savedYear = localStorage.getItem("lastAttendanceYear");
+    
+    monthInput.value = savedMonth ? savedMonth : currentMonth;
+    yearInput.value = savedYear ? savedYear : currentYear;
+
+    // Lắng nghe sự kiện thay đổi để load lại Grid
+    $("#attendanceClass").on("change", fetchGrid);
+    monthInput.addEventListener("change", fetchGrid);
+    yearInput.addEventListener("change", fetchGrid);
+  }
+
+  async function fetchGrid() {
+    const classId = document.getElementById("attendanceClass").value;
+    const month = document.getElementById("attendanceMonth").value;
+    const year = document.getElementById("attendanceYear").value;
+
+    if (!classId || !month || !year) return;
+
+    // Lưu state lại
+    localStorage.setItem("lastAttendanceClassId", classId);
+    localStorage.setItem("lastAttendanceMonth", month);
+    localStorage.setItem("lastAttendanceYear", year);
+
+    try {
+      if (currentTab === "student") {
+        const data = await api(`/api/attendance/month?class_id=${classId}&month=${month}&year=${year}`);
+        isLocked = data.is_locked;
+        document.getElementById("lockedNotice").classList.toggle("hidden", !isLocked);
+        renderStudentGrid(data.students, month, year, classId);
+      } else {
+        const data = await api(`/api/teacher-attendance/month?class_id=${classId}&month=${month}&year=${year}`);
+        document.getElementById("lockedNotice").classList.add("hidden");
+        renderTeacherGrid(data.teachers, month, year, classId);
+      }
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function renderStudentGrid(students, month, year, classId) {
+    const days = getDaysInMonth(month, year);
+    const head = document.getElementById("gridHead");
+    const body = document.getElementById("gridBody");
+    
+    // Render Header
+    let headHtml = `<tr><th class="sticky-col font-bold text-slate-800">Học sinh</th>`;
+    for (let i = 1; i <= days; i++) {
+      headHtml += `<th class="text-slate-600 font-bold">${i}</th>`;
+    }
+    headHtml += `</tr>`;
+    head.innerHTML = headHtml;
+
+    // Render Body
+    if (students.length === 0) {
+      body.innerHTML = `<tr><td colspan="${days + 1}" class="text-slate-500 py-8 text-center">Chưa có học sinh trong lớp này.</td></tr>`;
+      return;
+    }
+
+    let bodyHtml = "";
+    students.forEach(student => {
+      bodyHtml += `<tr><td class="sticky-col">
+          <div class="font-bold text-slate-800">${student.full_name}</div>
+          <div class="text-xs text-slate-400 font-mono mt-0.5">${student.student_code}</div>
+        </td>`;
+      
+      for (let day = 1; day <= days; day++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const currentStatus = student.attendance[dateStr] || "";
+        
+        const isChecked = (currentStatus === "P" || currentStatus === "M") ? "checked" : "";
+
+        bodyHtml += `<td>
+          <input 
+            type="checkbox"
+            id="chk_${student.student_id}_${dateStr}"
+            class="attendance-checkbox" 
+            ${isChecked}
+            onchange="toggleCheckboxStatus(this, ${student.student_id}, ${classId}, '${dateStr}')"
+          />
+        </td>`;
+      }
+      bodyHtml += `</tr>`;
+    });
+    body.innerHTML = bodyHtml;
+  }
+
+  async function toggleCheckboxStatus(checkbox, studentId, classId, dateStr) {
+    const isChecked = checkbox.checked;
+    const nextStatus = isChecked ? "P" : "V";
+    
+    checkbox.disabled = true;
+
+    try {
+      await api("/api/attendance/single", {
+        method: "PUT",
+        body: JSON.stringify({
+          class_id: classId,
+          student_id: studentId,
+          date: dateStr,
+          status: nextStatus
+        })
+      });
+    } catch (err) {
+      toast("Lỗi khi lưu: " + err.message, true);
+      checkbox.checked = !isChecked;
+    } finally {
+      checkbox.disabled = false;
+    }
+  }
+
+  function renderTeacherGrid(teachers, month, year, classId) {
+    const days = getDaysInMonth(month, year);
+    const head = document.getElementById("gridHead");
+    const body = document.getElementById("gridBody");
+    
+    // Render Header
+    let headHtml = `<tr><th class="sticky-col font-bold text-slate-800">Giáo viên</th>`;
+    for (let i = 1; i <= days; i++) {
+      headHtml += `<th class="text-slate-600 font-bold">${i}</th>`;
+    }
+    headHtml += `</tr>`;
+    head.innerHTML = headHtml;
+
+    // Render Body
+    if (teachers.length === 0) {
+      body.innerHTML = `<tr><td colspan="${days + 1}" class="text-slate-500 py-8 text-center">Chưa có giáo viên được phân công vào lớp này.</td></tr>`;
+      return;
+    }
+
+    let bodyHtml = "";
+    teachers.forEach(teacher => {
+      const roleBadge = teacher.role === "main"
+        ? `<span class="px-1.5 py-0.5 text-[10px] font-bold bg-teal-50 text-teal-700 rounded border border-teal-200 ml-1">Chính</span>`
+        : `<span class="px-1.5 py-0.5 text-[10px] font-bold bg-slate-50 text-slate-600 rounded border border-slate-200 ml-1">Phụ</span>`;
+
+      bodyHtml += `<tr><td class="sticky-col">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-800">${teacher.full_name}</span>
+            ${roleBadge}
+          </div>
+        </td>`;
+      
+      for (let day = 1; day <= days; day++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const currentStatus = teacher.attendance[dateStr] || "";
+        
+        bodyHtml += `<td>
+          <div 
+            data-status="${currentStatus}"
+            class="teacher-att-cell ${currentStatus ? 'teacher-att-' + currentStatus : 'teacher-att-empty'} text-center"
+            onclick="cycleTeacherAttendance(this, ${teacher.teacher_id}, ${classId}, '${dateStr}')"
+          >${currentStatus ? currentStatus : "-"}</div>
+        </td>`;
+      }
+      bodyHtml += `</tr>`;
+    });
+    body.innerHTML = bodyHtml;
+  }
+
+  async function cycleTeacherAttendance(element, teacherId, classId, dateStr) {
+    const currentStatus = element.getAttribute("data-status") || "";
+    let nextStatus = "";
+    if (currentStatus === "") {
+      nextStatus = "P";
+    } else if (currentStatus === "P") {
+      nextStatus = "V";
+    } else if (currentStatus === "V") {
+      nextStatus = "M";
+    } else {
+      nextStatus = "";
+    }
+    
+    element.style.pointerEvents = "none";
+    element.style.opacity = "0.5";
+    
+    try {
+      await api("/api/teacher-attendance/single", {
+        method: "PUT",
+        body: JSON.stringify({
+          class_id: classId,
+          teacher_id: teacherId,
+          date: dateStr,
+          status: nextStatus ? nextStatus : null
+        })
+      });
+      
+      element.setAttribute("data-status", nextStatus);
+      element.className = `teacher-att-cell ${nextStatus ? 'teacher-att-' + nextStatus : 'teacher-att-empty'} text-center`;
+      element.textContent = nextStatus ? nextStatus : "-";
+    } catch (err) {
+      toast("Lỗi khi lưu điểm danh GV: " + err.message, true);
+    } finally {
+      element.style.pointerEvents = "auto";
+      element.style.opacity = "1";
+    }
+  }
+
+  // Khởi chạy
+  async function boot() {
+    await loadClasses();
+    initFilters();
+    
+    // Khôi phục Tab
+    const savedTab = localStorage.getItem("lastAttendanceTab");
+    if (savedTab) {
+      switchTab(savedTab);
+    } else {
+      switchTab("student");
+    }
+  }
+  
+  boot().catch(err => toast(err.message, true));
+</script>
+{% endblock %}

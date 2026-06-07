@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, selectinload
+
+from app.auth import get_current_user
+from app.database import get_db
+from app.models import Enrollment, Student
+from app.schemas import EnrollmentCreate, EnrollmentUpdate, StudentCreate, StudentOut, StudentUpdate
+from app.timezone import today_vietnam
+
+router = APIRouter(prefix="/api/students", tags=["students"], dependencies=[Depends(get_current_user)])
+enrollment_router = APIRouter(prefix="/api/enrollments", tags=["enrollments"], dependencies=[Depends(get_current_user)])
+
+
+@router.get("")
+def list_students(q: str | None = None, active: bool | None = None, db: Session = Depends(get_db)):
+    stmt = select(Student).options(selectinload(Student.enrollments).selectinload(Enrollment.class_))
+    if q:
+        text = f"%{q.strip()}%"
+        stmt = stmt.where((Student.full_name.like(text)) | (Student.student_code.like(text)))
+    if active is not None:
+        stmt = stmt.where(Student.is_active.is_(active))
+    students = db.scalars(stmt.order_by(Student.full_name)).all()
+    return [
+        {
+            "id": s.id,
+            "student_code": s.student_code,
+            "full_name": s.full_name,
+            "parent_phone": s.parent_phone,
+            "notes": s.notes,
+            "is_active": s.is_active,
+            "classes": [
+                {
+                    "enrollment_id": e.id,
+                    "class_id": e.class_id,
+                    "name": e.class_.name,
+                    "subject": e.class_.subject,
+                    "custom_fee": e.custom_fee,
+                    "is_exempt": e.is_exempt,
+                    "is_active": e.is_active,
+                }
+                for e in s.enrollments
+            ],
+        }
+        for s in students
+    ]
+
+
+@router.post("", response_model=StudentOut)
+def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
+    from app.timezone import today_vietnam
+    from sqlalchemy import func
+
+    current_year = today_vietnam().year
+
+    data = payload.model_dump()
+    if not data.get("student_code") or not data["student_code"].strip():
+        count = db.scalar(
+            select(func.count(Student.id)).where(
+                func.strftime("%Y", Student.created_at) == str(current_year)
+            )
+        ) or 0
+        data["student_code"] = f"{current_year}HS{count + 1}"
+    else:
+        data["student_code"] = data["student_code"].strip()
+
+    student = Student(**data)
+    db.add(student)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Mã học sinh đã tồn tại.") from exc
+    db.refresh(student)
+    return student
+
+
+@router.put("/{student_id}", response_model=StudentOut)
+def update_student(student_id: int, payload: StudentUpdate, db: Session = Depends(get_db)):
+    student = db.get(Student, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Không tìm thấy học sinh.")
+    data = payload.model_dump()
+    if not data.get("student_code") or not data["student_code"].strip():
+        data["student_code"] = student.student_code
+    else:
+        data["student_code"] = data["student_code"].strip()
+    for key, value in data.items():
+        setattr(student, key, value)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Mã học sinh đã tồn tại.") from exc
+    db.refresh(student)
+    return student
+
+
+@router.delete("/{student_id}")
+def delete_student(student_id: int, db: Session = Depends(get_db)):
+    student = db.get(Student, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Không tìm thấy học sinh.")
+    student.is_active = False
+    db.commit()
+    return {"message": "Đã ngưng hoạt động học sinh."}
+
+
+@enrollment_router.get("")
+def list_enrollments(db: Session = Depends(get_db)):
+    rows = db.scalars(select(Enrollment).options(selectinload(Enrollment.student), selectinload(Enrollment.class_))).all()
+    return [
+        {
+            "id": e.id,
+            "student_id": e.student_id,
+            "student_name": e.student.full_name,
+            "class_id": e.class_id,
+            "class_name": e.class_.name,
+            "subject": e.class_.subject,
+            "custom_fee": e.custom_fee,
+            "is_exempt": e.is_exempt,
+            "start_date": e.start_date.isoformat(),
+            "is_active": e.is_active,
+            "notes": e.notes,
+        }
+        for e in rows
+    ]
+
+
+@enrollment_router.post("")
+def create_enrollment(payload: EnrollmentCreate, db: Session = Depends(get_db)):
+    from app.services.tuition_service import sync_enrollment_fee_to_records
+    data = payload.model_dump()
+    class_ids = data.pop("class_ids")
+    if data["start_date"] is None:
+        data["start_date"] = today_vietnam()
+        
+    for c_id in class_ids:
+        # Check xem học sinh đã có trong lớp chưa để cập nhật hoặc thêm mới
+        exists = db.scalar(
+            select(Enrollment).where(
+                Enrollment.student_id == data["student_id"],
+                Enrollment.class_id == c_id,
+            )
+        )
+        if exists:
+            exists.custom_fee = data.get("custom_fee")
+            exists.is_exempt = data.get("is_exempt", False)
+            exists.is_active = data.get("is_active", True)
+            exists.notes = data.get("notes")
+            exists.start_date = data.get("start_date") or exists.start_date
+            db.flush()
+            sync_enrollment_fee_to_records(
+                db,
+                student_id=data["student_id"],
+                class_id=c_id,
+                custom_fee=exists.custom_fee,
+                is_exempt=exists.is_exempt
+            )
+        else:
+            enrollment = Enrollment(class_id=c_id, **data)
+            db.add(enrollment)
+            db.flush()
+            sync_enrollment_fee_to_records(
+                db,
+                student_id=data["student_id"],
+                class_id=c_id,
+                custom_fee=enrollment.custom_fee,
+                is_exempt=enrollment.is_exempt
+            )
+            
+    db.commit()
+    return {"message": "Đã gán và cập nhật học sinh vào (các) lớp/môn học."}
+
+
+@enrollment_router.put("/{enrollment_id}")
+def update_enrollment(enrollment_id: int, payload: EnrollmentUpdate, db: Session = Depends(get_db)):
+    enrollment = db.get(Enrollment, enrollment_id)
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phân lớp.")
+    data = payload.model_dump()
+    if data["start_date"] is None:
+        data["start_date"] = enrollment.start_date
+    for key, value in data.items():
+        setattr(enrollment, key, value)
+    db.commit()
+    return {"message": "Đã cập nhật phân lớp."}
+
+
+@enrollment_router.delete("/{enrollment_id}")
+def delete_enrollment(enrollment_id: int, db: Session = Depends(get_db)):
+    enrollment = db.get(Enrollment, enrollment_id)
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phân lớp.")
+    enrollment.is_active = False
+    db.commit()
+    return {"message": "Đã ngưng phân lớp."}

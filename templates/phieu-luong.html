@@ -1,0 +1,231 @@
+<!-- templates/phieu-luong.html -->
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Phiếu xác nhận lương</title>
+    <style>
+      @page {
+        size: A4 portrait;
+        margin: 15mm;
+      }
+      body {
+        font-family: "Times New Roman", Times, serif;
+        color: #000;
+        background: #fff;
+        margin: 0;
+        padding: 0;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      .phieu-luong-wrapper {
+        page-break-inside: avoid;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .header-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+      .header-table td {
+        border: none;
+        padding: 4px;
+        vertical-align: middle;
+      }
+      .logo-cell {
+        width: 35%;
+        text-align: center;
+        border-right: 1px solid #ddd !important;
+        padding-right: 10px !important;
+      }
+      .logo-img {
+        max-height: 35mm;
+        max-width: 100%;
+        object-fit: contain;
+        display: block;
+        margin: 0 auto;
+      }
+      .info-cell {
+        width: 70%;
+        padding-left: 15px !important;
+      }
+      .center-name {
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 15px;
+      }
+      .title {
+        text-align: center;
+        font-weight: bold;
+        font-size: 20px;
+        text-transform: uppercase;
+        margin: 25px 0 15px 0;
+        letter-spacing: 0.5px;
+      }
+      .meta-info {
+        margin-bottom: 20px;
+        font-size: 14.5px;
+      }
+      .meta-row {
+        display: flex;
+        margin-bottom: 5px;
+      }
+      .meta-label {
+        width: 150px;
+        font-weight: bold;
+      }
+      .meta-value {
+        flex: 1;
+      }
+      table.data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        margin-bottom: 20px;
+      }
+      table.data-table th,
+      table.data-table td {
+        border: 1px solid #000;
+        padding: 8px 6px;
+        text-align: center;
+      }
+      table.data-table th {
+        font-weight: bold;
+        background-color: #f5f5f5;
+        font-size: 13.5px;
+      }
+      .text-left {
+        text-align: left !important;
+        padding-left: 8px !important;
+      }
+      .text-right {
+        text-align: right !important;
+        padding-right: 8px !important;
+      }
+      .font-bold {
+        font-weight: bold;
+      }
+      .signatures {
+        margin-top: 40px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .signature-block {
+        width: 45%;
+        text-align: center;
+        padding-bottom: 60px;
+      }
+      .signature-title {
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    {% for record in records %}
+    <div class="phieu-luong-wrapper" style="{% if not loop.last %}page-break-after: always;{% endif %}">
+      <!-- Header -->
+      <table class="header-table">
+        <tr>
+          <td class="logo-cell">
+            {% if logo_path %}
+            <img src="{{ logo_path }}" alt="Logo" class="logo-img" />
+            {% endif %}
+          </td>
+          <td class="info-cell">
+            <div class="center-name">{{ settings.center_name }}</div>
+            <div style="margin-top: 2px;">Địa chỉ: {{ settings.center_address }}</div>
+            <div style="margin-top: 2px;">Hotline: {{ settings.center_hotline }}</div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Title -->
+      <div class="title">Phiếu xác nhận lương giáo viên</div>
+      <div style="text-align: center; font-style: italic; margin-top: -10px; margin-bottom: 20px;">
+        Kỳ lương: Tháng {{ record.month }} năm {{ record.year }}
+      </div>
+
+      <!-- Meta Info -->
+      <div class="meta-info">
+        <div class="meta-row">
+          <span class="meta-label">Họ và tên:</span>
+          <span class="meta-value font-bold">{{ record.teacher.full_name }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Số điện thoại:</span>
+          <span class="meta-value">{{ record.teacher.phone or "-" }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Địa chỉ email:</span>
+          <span class="meta-value">{{ record.teacher.email or "-" }}</span>
+        </div>
+      </div>
+
+      <!-- Table Details -->
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 30%;">Lớp / Môn học</th>
+            <th style="width: 12%;">Số buổi dạy</th>
+            <th style="width: 18%;">Doanh thu lớp</th>
+            <th style="width: 15%;">Hình thức tính</th>
+            <th style="width: 13%;">Đơn giá / Hệ số</th>
+            <th style="width: 12%;">Thành tiền</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in record.items %}
+          <tr>
+            <td class="text-left font-bold">{{ item.class_name }}</td>
+            <td>{{ item.sessions_count }}</td>
+            <td class="text-right">
+              {% if item.salary_type == 'coefficient' %}
+              {{ item.class_revenue | currency }}
+              {% else %}
+              -
+              {% endif %}
+            </td>
+            <td>
+              {% if item.salary_type == 'fixed' %}
+              Lương cứng
+              {% else %}
+              Doanh thu
+              {% endif %}
+            </td>
+            <td>
+              {% if item.salary_type == 'fixed' %}
+              {{ item.applied_rate | int | currency }}
+              {% else %}
+              {{ item.applied_rate }}
+              {% endif %}
+            </td>
+            <td class="text-right font-bold">{{ item.calculated_amount | currency }}</td>
+          </tr>
+          {% endfor %}
+          <!-- Total Row -->
+          <tr>
+            <td colspan="5" class="font-bold text-right" style="font-size: 14.5px;">TỔNG CỘNG LƯƠNG NHẬN (VNĐ):</td>
+            <td class="text-right font-bold text-red-700" style="font-size: 14.5px; color: #b91c1c;">
+              {{ record.total_amount | currency }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Signatures -->
+      <div class="signatures">
+        <div class="signature-block">
+          <div class="signature-title">Giáo viên ký nhận</div>
+          <div style="font-style: italic; color: #888; font-size: 12px;">(Ký và ghi rõ họ tên)</div>
+        </div>
+        <div class="signature-block">
+          <div class="signature-title">Người lập phiếu</div>
+          <div style="font-style: italic; color: #888; font-size: 12px;">(Ký và ghi rõ họ tên)</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </body>
+</html>
