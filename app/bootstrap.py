@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import hash_password
+from app.database import BASE_DIR
 from app.models import Setting, User
 
 DEFAULT_SETTINGS = {
@@ -22,6 +23,23 @@ DEFAULT_SETTINGS = {
     "center_zalo": "",
     "receipt_logo_display": "both",
 }
+
+
+TRANSPARENT_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+    b"\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+    b"\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe"
+    b"\x02\xfeA\x0e\xf4\xce\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+def ensure_default_assets() -> None:
+    assets_dir = BASE_DIR / "static" / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    for filename in ("logo.png", "qr.png"):
+        target = assets_dir / filename
+        if not target.exists():
+            target.write_bytes(TRANSPARENT_PNG)
 
 
 def seed_defaults(db: Session) -> None:

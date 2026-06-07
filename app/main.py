@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, get_user_from_request
-from app.bootstrap import seed_defaults
+from app.bootstrap import ensure_default_assets, seed_defaults
 from app.database import BASE_DIR, SessionLocal, get_db, init_db
 from app.models import User
 from app.routers import admin_users, attendance, auth, classes, dashboard, settings, students, tuition, data_management, teachers, payroll, teacher_attendance
@@ -21,6 +21,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    ensure_default_assets()
     init_db()
     with SessionLocal() as db:
         seed_defaults(db)
