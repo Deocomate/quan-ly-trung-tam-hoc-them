@@ -50,12 +50,23 @@
 </div>
 
 <div class="mt-5 grid gap-5 lg:grid-cols-[1fr_340px]">
-  <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100">
-    <div>
-      <h2 class="text-lg font-extrabold text-slate-800">Biểu đồ doanh thu năm</h2>
-      <p class="text-sm text-slate-500 mt-0.5">Dữ liệu lấy từ các kỳ học phí đã chốt.</p>
+  <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-extrabold text-slate-800">Biểu đồ doanh thu</h2>
+        <p class="text-sm text-slate-500 mt-0.5">Dữ liệu lấy từ các kỳ học phí đã chốt.</p>
+      </div>
+      <div>
+        <select id="chartPeriod" class="field !min-height-0 py-1.5 px-3 text-sm rounded-lg border-slate-200 font-semibold text-slate-700 bg-slate-50">
+          <option value="all">Cả năm</option>
+          <option value="q1">3 tháng đầu (Quý 1)</option>
+          <option value="q2">3 tháng giữa (Quý 2)</option>
+          <option value="q3">3 tháng sau (Quý 3)</option>
+          <option value="q4">3 tháng cuối (Quý 4)</option>
+        </select>
+      </div>
     </div>
-    <div class="mt-6 h-[330px]"><canvas id="revenueChart"></canvas></div>
+    <div class="mt-6 h-[330px] w-full"><canvas id="revenueChart"></canvas></div>
   </section>
   <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100">
     <h2 class="text-lg font-extrabold text-slate-800 border-b border-slate-100 pb-3">Thao tác nhanh</h2>
@@ -81,7 +92,56 @@
   document.getElementById("year").value = defaultYear;
   
   let chart;
-  
+  let yearlyRevenueData = []; // Biến lưu trữ dữ liệu 12 tháng
+
+  // Hàm render hoặc update biểu đồ dựa trên dữ liệu đã lọc
+  function renderChart() {
+    const period = document.getElementById("chartPeriod").value;
+    let filteredData = yearlyRevenueData;
+
+    // Lọc mảng dữ liệu dựa theo lựa chọn (Q1: index 0-2, Q2: 3-5, Q3: 6-8, Q4: 9-11)
+    if (period === "q1") filteredData = yearlyRevenueData.slice(0, 3);
+    else if (period === "q2") filteredData = yearlyRevenueData.slice(3, 6);
+    else if (period === "q3") filteredData = yearlyRevenueData.slice(6, 9);
+    else if (period === "q4") filteredData = yearlyRevenueData.slice(9, 12);
+
+    const labels = filteredData.map((r) => `Tháng ${r.month}`);
+    const data = filteredData.map((r) => r.amount);
+
+    // Nếu chart đã tồn tại, chỉ cần update data để có hiệu ứng mượt mà
+    if (chart) {
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = data;
+      chart.update();
+    } else {
+      // Khởi tạo chart lần đầu
+      chart = new Chart(document.getElementById("revenueChart"), {
+        type: "bar",
+        data: { 
+          labels, 
+          datasets: [{ 
+            label: "Doanh thu", 
+            data, 
+            backgroundColor: "#0f766e", 
+            borderRadius: 6 
+          }] 
+        },
+        options: { 
+          maintainAspectRatio: false, 
+          plugins: { 
+            legend: { display: false } 
+          }, 
+          scales: { 
+            y: { 
+              beginAtZero: true,
+              ticks: { callback: formatMoney } 
+            } 
+          } 
+        },
+      });
+    }
+  }
+
   async function loadDashboard() {
     const month = Number(document.getElementById("month").value);
     const year = Number(document.getElementById("year").value);
@@ -97,40 +157,20 @@
     document.getElementById("exportExcelBtn").href = `/api/dashboard/export-excel?month=${month}&year=${year}`;
     document.getElementById("exportPdfBtn").href = `/api/dashboard/export-pdf?month=${month}&year=${year}`;
     
-    // Tải thông tin biểu đồ doanh thu năm
-    const revenue = await api(`/api/dashboard/revenue?year=${year}`);
-    const labels = revenue.map((r) => `Tháng ${r.month}`);
-    const data = revenue.map((r) => r.amount);
+    // Tải thông tin biểu đồ doanh thu năm (Lưu vào biến global)
+    yearlyRevenueData = await api(`/api/dashboard/revenue?year=${year}`);
     
-    if (chart) chart.destroy();
-    chart = new Chart(document.getElementById("revenueChart"), {
-      type: "bar",
-      data: { 
-        labels, 
-        datasets: [{ 
-          label: "Doanh thu", 
-          data, 
-          backgroundColor: "#0f766e", 
-          borderRadius: 6 
-        }] 
-      },
-      options: { 
-        maintainAspectRatio: false, 
-        plugins: { 
-          legend: { display: false } 
-        }, 
-        scales: { 
-          y: { 
-            ticks: { callback: formatMoney } 
-          } 
-        } 
-      },
-    });
+    // Gọi hàm render biểu đồ
+    renderChart();
   }
-  
+
+  // Gắn sự kiện lắng nghe thay đổi
   document.getElementById("month").addEventListener("change", loadDashboard);
   document.getElementById("year").addEventListener("change", loadDashboard);
   
+  // Khi đổi khoảng thời gian biểu đồ, KHÔNG cần gọi API, chỉ cần vẽ lại chart
+  document.getElementById("chartPeriod").addEventListener("change", renderChart);
+
   loadDashboard().catch((err) => toast(err.message, true));
 </script>
 {% endblock %}
