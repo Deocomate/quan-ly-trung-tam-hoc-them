@@ -177,6 +177,14 @@ body {
   letter-spacing: 0;
 }
 
+.table th.text-center {
+  text-align: center;
+}
+
+.table th.text-right {
+  text-align: right;
+}
+
 .table th,
 .table td {
   padding: 11px 12px;
