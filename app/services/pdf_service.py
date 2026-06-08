@@ -503,59 +503,65 @@ def render_multiple_receipts_reportlab(records: list[TuitionRecord], settings: d
 def _register_vietnamese_fonts() -> tuple[str, str]:
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-
-    font_dir = Path("C:/Windows/Fonts")
+    from pathlib import Path
+    
+    # Hỗ trợ tìm font trên cả Windows và Linux (Docker)
+    font_dirs = [
+        Path("C:/Windows/Fonts"),
+        Path("/usr/share/fonts/truetype/liberation"),
+        Path("/usr/share/fonts/truetype/dejavu")
+    ]
+    
+    # Danh sách các bộ font hỗ trợ tiếng Việt (ưu tiên Times New Roman, dự phòng Liberation Serif)
     candidates = [
         (
-            "TimesNewRomanQL",
-            "TimesNewRomanQLBold",
-            "TimesNewRomanQLItalic",
-            "TimesNewRomanQLBoldItalic",
-            font_dir / "times.ttf",
-            font_dir / "timesbd.ttf",
-            font_dir / "timesi.ttf",
-            font_dir / "timesbi.ttf"
+            "TimesNewRomanQL", "TimesNewRomanQLBold", "TimesNewRomanQLItalic", "TimesNewRomanQLBoldItalic",
+            "times.ttf", "timesbd.ttf", "timesi.ttf", "timesbi.ttf"
         ),
         (
-            "ArialQL",
-            "ArialQLBold",
-            "ArialQLItalic",
-            "ArialQLBoldItalic",
-            font_dir / "arial.ttf",
-            font_dir / "arialbd.ttf",
-            font_dir / "ariali.ttf",
-            font_dir / "arialbi.ttf"
+            "LiberationSerifQL", "LiberationSerifQLBold", "LiberationSerifQLItalic", "LiberationSerifQLBoldItalic",
+            "LiberationSerif-Regular.ttf", "LiberationSerif-Bold.ttf", "LiberationSerif-Italic.ttf", "LiberationSerif-BoldItalic.ttf"
+        ),
+        (
+            "ArialQL", "ArialQLBold", "ArialQLItalic", "ArialQLBoldItalic",
+            "arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf"
         ),
     ]
-    for reg_name, bold_name, italic_name, bi_name, reg_path, bold_path, italic_path, bi_path in candidates:
-        if reg_path.exists() and bold_path.exists():
-            if reg_name not in pdfmetrics.getRegisteredFontNames():
-                pdfmetrics.registerFont(TTFont(reg_name, str(reg_path)))
-            if bold_name not in pdfmetrics.getRegisteredFontNames():
-                pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
-            
-            # Register italic if exists
-            if italic_path.exists():
-                if italic_name not in pdfmetrics.getRegisteredFontNames():
-                    pdfmetrics.registerFont(TTFont(italic_name, str(italic_path)))
-            else:
-                italic_name = reg_name
-                
-            # Register bold italic if exists
-            if bi_path.exists():
-                if bi_name not in pdfmetrics.getRegisteredFontNames():
-                    pdfmetrics.registerFont(TTFont(bi_name, str(bi_path)))
-            else:
-                bi_name = bold_name
 
-            pdfmetrics.registerFontFamily(
-                reg_name,
-                normal=reg_name,
-                bold=bold_name,
-                italic=italic_name,
-                boldItalic=bi_name
-            )
-            return reg_name, bold_name
+    for font_dir in font_dirs:
+        if not font_dir.exists():
+            continue
+        for reg_name, bold_name, italic_name, bi_name, reg_file, bold_file, italic_file, bi_file in candidates:
+            reg_path = font_dir / reg_file
+            bold_path = font_dir / bold_file
+            italic_path = font_dir / italic_file
+            bi_path = font_dir / bi_file
+
+            if reg_path.exists() and bold_path.exists():
+                if reg_name not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont(reg_name, str(reg_path)))
+                if bold_name not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
+                if italic_path.exists():
+                    if italic_name not in pdfmetrics.getRegisteredFontNames():
+                        pdfmetrics.registerFont(TTFont(italic_name, str(italic_path)))
+                else:
+                    italic_name = reg_name
+                if bi_path.exists():
+                    if bi_name not in pdfmetrics.getRegisteredFontNames():
+                        pdfmetrics.registerFont(TTFont(bi_name, str(bi_path)))
+                else:
+                    bi_name = bold_name
+                
+                pdfmetrics.registerFontFamily(
+                    reg_name,
+                    normal=reg_name,
+                    bold=bold_name,
+                    italic=italic_name,
+                    boldItalic=bi_name
+                )
+                return reg_name, bold_name
+
     return "Helvetica", "Helvetica-Bold"
 
 

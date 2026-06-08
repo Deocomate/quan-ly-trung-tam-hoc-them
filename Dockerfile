@@ -6,7 +6,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Cho phép Debian cài các gói non-free (chứa font Microsoft)
+RUN echo "deb http://deb.debian.org/debian bookworm contrib non-free" > /etc/apt/sources.list.d/contrib.list
+
+RUN apt-get update && \
+    # Tự động đồng ý điều khoản cài đặt font của Microsoft
+    echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
+    apt-get install -y --no-install-recommends \
     build-essential \
     libffi-dev \
     libglib2.0-0 \
@@ -15,17 +21,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libgdk-pixbuf2.0-0 \
-    fonts-dejavu \
-    fonts-liberation \
+    ttf-mscorefonts-installer \
+    fontconfig \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# Cập nhật lại cache font cho Linux
+RUN fc-cache -f -v
 
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-
 RUN mkdir -p /app/database /app/static/assets
 
 EXPOSE 8000
