@@ -73,9 +73,9 @@ pip install -r requirements.txt
 
 **3. Khởi chạy:**
 ```bash
-python run.py
+python main.py
 ```
-> Script `run.py` sẽ tự động tìm Port trống, khởi động Server Uvicorn và tự động mở trình duyệt.
+> Script `main.py` sẽ tự động tìm Port trống, khởi động Server Uvicorn và tự động mở trình duyệt.
 
 ---
 
@@ -126,8 +126,7 @@ hoang-quanlylophoc/
 │   ├── models.py         # Định nghĩa các bảng Database (SQLAlchemy)
 │   ├── schemas.py        # Định nghĩa Pydantic Models (Validate API In/Out)
 │   ├── database.py       # Cấu hình kết nối SQLite
-│   ├── bootstrap.py      # Script khởi tạo cài đặt mặc định
-│   └── main.py           # Khởi tạo FastAPI App & Mount Frontend
+│   └── bootstrap.py      # Script khởi tạo cài đặt mặc định
 ├── database/             # Nơi lưu trữ file Database (quanlylophoc.sqlite3)
 ├── static/               # File tĩnh (CSS, JS, Uploaded Assets: Logo, QR)
 ├── templates/            # Các file giao diện HTML (Jinja2)
@@ -135,7 +134,7 @@ hoang-quanlylophoc/
 ├── docker-compose.yml    # Cấu hình Docker Compose
 ├── Dockerfile            # Cấu hình build Docker Image
 ├── requirements.txt      # Danh sách thư viện Python
-└── run.py                # File script chạy dự án local
+└── main.py               # File script chạy dự án local & khởi tạo FastAPI App
 ```
 
 ---

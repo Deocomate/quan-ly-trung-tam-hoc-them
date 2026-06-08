@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.database import SessionLocal, init_db
 from app.bootstrap import seed_defaults
-from app.main import app
+from main import app
 from app.models import Attendance, Class, Enrollment, Student, TuitionPeriod, TuitionRecord, TuitionRecordItem
 from app.timezone import now_vietnam, parse_local_date
 

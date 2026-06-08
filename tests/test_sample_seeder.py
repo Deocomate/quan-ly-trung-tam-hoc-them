@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from fastapi.testclient import TestClient
 
-from app.main import app
+from main import app
 from app.models import Attendance, Class, Enrollment, Student, TuitionPeriod, TuitionRecord
 from app.seeder.sample_data import EXPECTED_REVENUE, EXPECTED_TUITION, SAMPLE_MONTH, SAMPLE_YEAR, sample_class_names, sample_student_codes
 from app.seeder.seed import _reset_sample_data, seed_sample_data

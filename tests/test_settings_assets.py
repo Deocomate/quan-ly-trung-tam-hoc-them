@@ -8,7 +8,7 @@ from PIL import Image
 
 import app.bootstrap as bootstrap_module
 import app.routers.settings as settings_module
-from app.main import app
+from main import app
 
 
 @pytest.fixture()

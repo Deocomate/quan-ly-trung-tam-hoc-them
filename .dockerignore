@@ -30,7 +30,6 @@ static/assets/logo.png
 static/assets/qr.png
 
 # Local-only files
-run.py
 tests/
 docs/
 pip-log.txt

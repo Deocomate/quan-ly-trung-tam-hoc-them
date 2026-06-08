@@ -31,7 +31,7 @@ app.database.SessionLocal = TestingSessionLocal
 
 # Import other components now that the database has been overridden
 from app.database import Base, get_db, init_db
-from app.main import app as fastapi_app
+from main import app as fastapi_app
 from app.seeder.seed import seed_sample_data
 from fastapi.testclient import TestClient
 
