@@ -104,20 +104,27 @@
     return month >= 8 ? `${year} - ${year + 1}` : `${year - 1} - ${year}`;
   }
 
-  function populateSchoolYearOptions() {
+  function populateSchoolYearOptions(selectedYear = null) {
     const selectEl = document.getElementById("schoolYearSelect");
     if (!selectEl) return;
     
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
     
-    const defaultSy = getCurrentSchoolYear();
+    const defaultSy = selectedYear || getCurrentSchoolYear();
     selectEl.innerHTML = "";
     
-    // Gợi ý từ năm hiện tại - 2 đến năm hiện tại + 2
+    const years = [];
     for (let y = currentYear - 2; y <= currentYear + 2; y++) {
-      const syOption = `${y} - ${y + 1}`;
+      years.push(`${y} - ${y + 1}`);
+    }
+    
+    if (selectedYear && !years.includes(selectedYear)) {
+      years.push(selectedYear);
+      years.sort((a, b) => parseInt(a) - parseInt(b));
+    }
+    
+    years.forEach(syOption => {
       const opt = document.createElement("option");
       opt.value = syOption;
       opt.textContent = syOption;
@@ -125,7 +132,7 @@
         opt.selected = true;
       }
       selectEl.appendChild(opt);
-    }
+    });
   }
 
   function addTeacherAssignmentRow(assignment = null) {
@@ -310,6 +317,7 @@
   }
 
   function openClassForm(item = null) {
+    populateSchoolYearOptions(item?.school_year);
     const form = document.getElementById("classForm");
     form.reset();
     form.elements.id.value = item?.id || "";
