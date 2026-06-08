@@ -14,7 +14,7 @@ from app.models import TuitionRecord, User
 from app.schemas import TuitionLockRequest
 from app.services.pdf_service import receipt_to_pdf
 from app.services.settings_service import get_settings_map
-from app.services.tuition_service import build_tuition_preview, get_period, list_records, lock_tuition_period
+from app.services.tuition_service import build_tuition_preview, check_tuition_staleness, get_period, list_records, lock_tuition_period
 
 router = APIRouter(prefix="/api/tuition", tags=["tuition"], dependencies=[Depends(get_current_user)])
 
@@ -38,6 +38,12 @@ def preview_tuition(month: int, year: int, class_id: int | None = None, db: Sess
         "locked_at": period.locked_at.isoformat() if period and period.locked_at else None,
         "records": [_preview_to_dict(item) for item in build_tuition_preview(db, month, year, class_id)],
     }
+
+
+@router.get("/check-stale")
+def check_stale(month: int, year: int, class_id: int | None = None, db: Session = Depends(get_db)):
+    """So sánh dữ liệu học phí đã chốt với dữ liệu điểm danh hiện tại."""
+    return check_tuition_staleness(db, month, year, class_id)
 
 
 @router.post("/lock")

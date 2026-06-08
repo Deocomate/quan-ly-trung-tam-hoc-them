@@ -14,7 +14,7 @@ DEFAULT_SETTINGS = {
     "center_hotline": "Hotline: Chị Hoa: 0982927578 ; anh Sơn: 0969651968",
     "receipt_intro": "Hoa Tuyết Edu gửi tới Quý Phụ Huynh thông báo học phí Tháng của con như sau:",
     "payment_deadline": "Quý Phụ Huynh vui lòng hoàn thành học phí cho con trong ngày 15,16,17,18 hàng tháng",
-    "payment_content_template": "{student_name} {month:02d}{year_short}",
+    "payment_content_template": "HP {student_code} {month:02d}{year_short}",
     "receipt_footer": "Trân trọng cảm ơn!",
     "backup_schedule_day": "",
     "last_auto_backup_date": "",
@@ -61,4 +61,10 @@ def seed_defaults(db: Session) -> None:
     for key, value in DEFAULT_SETTINGS.items():
         if key not in existing_keys:
             db.add(Setting(key=key, value=value))
+        elif key == "payment_content_template":
+            existing_val = db.scalar(select(Setting.value).where(Setting.key == "payment_content_template"))
+            if existing_val == "{student_name} {month:02d}{year_short}":
+                setting_obj = db.scalar(select(Setting).where(Setting.key == "payment_content_template"))
+                if setting_obj:
+                    setting_obj.value = value
     db.commit()

@@ -63,3 +63,49 @@ def generate_vietqr_url(
     if params:
         return f"{base_url}?{urllib.parse.urlencode(params)}"
     return base_url
+
+
+def safe_format_payment_content(
+    template: str,
+    student_name: str,
+    student_code: str,
+    month: int,
+    year: int
+) -> str:
+    if not template:
+        template = "HP {student_code} {month:02d}{year_short}"
+        
+    year_str = str(year)
+    year_short = year_str[-2:]
+    month_str = f"{month:02d}"
+    
+    # 1. Friendly Vietnamese placeholder replacements
+    res = template
+    res = res.replace("{ten_hoc_sinh}", student_name)
+    res = res.replace("{ma_hoc_sinh}", student_code)
+    res = res.replace("{thang}", month_str)
+    res = res.replace("{nam}", year_str)
+    res = res.replace("{nam_rut_gon}", year_short)
+    
+    # 2. English placeholder replacements
+    res = res.replace("{student_name}", student_name)
+    res = res.replace("{student_code}", student_code)
+    res = res.replace("{month}", month_str)
+    res = res.replace("{year}", year_str)
+    res = res.replace("{year_short}", year_short)
+    
+    # 3. Python format fallback for backwards compatibility (e.g. {month:02d})
+    try:
+        if "{" in res and "}" in res:
+            res = res.format(
+                student_name=student_name,
+                student_code=student_code,
+                month=month,
+                year=year,
+                year_short=year_short
+            )
+    except Exception:
+        pass
+        
+    return res
+

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
@@ -164,9 +165,18 @@ def lock_tuition_period(db: Session, month: int, year: int, user: User, class_id
             
             # Ensure transfer_code is set
             if not record.transfer_code:
-                year_short = str(record.year)[-2:]
-                from app.services.vietqr_service import normalize_transfer_content
-                raw_code = f"HP {preview.student_code} {record.month:02d}{year_short}"
+                from app.services.settings_service import get_settings_map
+                settings = get_settings_map(db)
+                payment_template = settings.get("payment_content_template", "HP {student_code} {month:02d}{year_short}")
+                
+                from app.services.vietqr_service import safe_format_payment_content, normalize_transfer_content
+                raw_code = safe_format_payment_content(
+                    payment_template,
+                    preview.student_name,
+                    preview.student_code,
+                    record.month,
+                    record.year
+                )
                 record.transfer_code = normalize_transfer_content(raw_code)
                 
             # Recalculate status based on paid_amount and new total_amount
@@ -257,4 +267,128 @@ def sync_enrollment_fee_to_records(db: Session, student_id: int, class_id: int, 
     for record in updated_records:
         record.total_amount = sum(it.amount for it in record.items)
     db.flush()
+
+
+def sync_attendance_to_tuition(db: Session, student_id: int, class_id: int, att_date: date) -> None:
+    """Auto-sync: Khi điểm danh thay đổi, tự động cập nhật TuitionRecord đã chốt (nếu có).
+
+    Chỉ cập nhật TuitionRecordItem cụ thể theo student_id + class_id cho tháng/năm
+    của att_date. Nếu kỳ chưa chốt hoặc chưa có record → không làm gì.
+    """
+    month = att_date.month
+    year = att_date.year
+
+    # 1. Kiểm tra kỳ đã chốt chưa
+    if not is_period_locked(db, month, year):
+        return
+
+    # 2. Tìm TuitionRecord đã chốt cho học sinh này
+    record = db.scalar(
+        select(TuitionRecord).where(
+            TuitionRecord.student_id == student_id,
+            TuitionRecord.month == month,
+            TuitionRecord.year == year,
+        )
+    )
+    if not record:
+        return
+
+    # 3. Tìm TuitionRecordItem cho lớp cụ thể
+    item = db.scalar(
+        select(TuitionRecordItem).where(
+            TuitionRecordItem.record_id == record.id,
+            TuitionRecordItem.class_id == class_id,
+        )
+    )
+    if not item:
+        return
+
+    # 4. Đếm lại số buổi P/M trong tháng
+    start, end = month_bounds(year, month)
+    new_sessions = db.scalar(
+        select(func.count(Attendance.id)).where(
+            Attendance.student_id == student_id,
+            Attendance.class_id == class_id,
+            Attendance.date >= start,
+            Attendance.date < end,
+            Attendance.status.in_(["P", "M"]),
+        )
+    ) or 0
+
+    # 5. Lấy thông tin học phí từ Enrollment
+    enrollment = db.scalar(
+        select(Enrollment).where(
+            Enrollment.student_id == student_id,
+            Enrollment.class_id == class_id,
+        )
+    )
+    is_exempt = enrollment.is_exempt if enrollment else False
+
+    # 6. Cập nhật item
+    item.sessions = new_sessions
+    item.amount = 0 if is_exempt else (new_sessions * item.unit_fee)
+
+    # 7. Tính lại tổng cho TuitionRecord
+    all_items = db.scalars(
+        select(TuitionRecordItem).where(TuitionRecordItem.record_id == record.id)
+    ).all()
+    record.total_sessions = sum(it.sessions for it in all_items)
+    record.total_amount = sum(it.amount for it in all_items)
+
+    # 8. Cập nhật trạng thái thanh toán
+    if record.paid_amount >= record.total_amount:
+        record.payment_status = "paid"
+    elif record.paid_amount > 0:
+        record.payment_status = "partial"
+    else:
+        record.payment_status = "unpaid"
+
+    db.flush()
+
+
+def check_tuition_staleness(
+    db: Session, month: int, year: int, class_id: int | None = None
+) -> dict:
+    """So sánh dữ liệu TuitionRecord đã chốt với dữ liệu điểm danh realtime.
+
+    Trả về dict: { is_stale, stale_count, details: [...] }
+    """
+    if not is_period_locked(db, month, year):
+        return {"is_stale": False, "stale_count": 0, "details": []}
+
+    # Lấy dữ liệu realtime từ điểm danh
+    previews = build_tuition_preview(db, month, year, class_id)
+    preview_map: dict[int, tuple] = {}
+    for p in previews:
+        preview_map[p.student_id] = (p.total_sessions, p.total_amount)
+
+    # Lấy records đã chốt
+    records = list_records(db, month, year, class_id)
+    record_map: dict[int, tuple] = {}
+    for r in records:
+        record_map[r.student_id] = (r.total_sessions, r.total_amount, r)
+
+    details = []
+
+    # Kiểm tra records đã chốt vs preview
+    all_student_ids = set(preview_map.keys()) | set(record_map.keys())
+    for sid in all_student_ids:
+        p_sessions, p_amount = preview_map.get(sid, (0, 0))
+        if sid in record_map:
+            r_sessions, r_amount, rec = record_map[sid]
+            if r_sessions != p_sessions or r_amount != p_amount:
+                details.append({
+                    "student_name": rec.student.full_name,
+                    "student_code": rec.student.student_code,
+                    "old_sessions": r_sessions,
+                    "new_sessions": p_sessions,
+                    "old_amount": r_amount,
+                    "new_amount": p_amount,
+                })
+
+    return {
+        "is_stale": len(details) > 0,
+        "stale_count": len(details),
+        "details": details,
+    }
 

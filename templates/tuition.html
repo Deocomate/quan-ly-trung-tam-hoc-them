@@ -40,6 +40,31 @@
 
   <div id="tuitionNotice" class="mt-2 mb-4 hidden rounded-lg bg-teal-50 border border-teal-200 p-3 text-sm font-bold text-teal-800"></div>
 
+  <!-- Banner cảnh báo dữ liệu lỗi thời -->
+  <div id="staleWarning" class="mt-2 mb-4 hidden rounded-lg bg-amber-50 border-2 border-amber-300 p-4 shadow-sm">
+    <div class="flex items-start gap-3">
+      <div class="flex-shrink-0 mt-0.5">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+      </div>
+      <div class="flex-1">
+        <h4 class="text-sm font-extrabold text-amber-800">Dữ liệu học phí đã lỗi thời!</h4>
+        <p id="staleMessage" class="text-sm text-amber-700 mt-1"></p>
+        <details id="staleDetails" class="mt-2 hidden">
+          <summary class="text-xs font-bold text-amber-600 cursor-pointer hover:text-amber-800 transition">Xem chi tiết thay đổi</summary>
+          <div id="staleDetailsList" class="mt-2 text-xs text-amber-700 space-y-1 max-h-40 overflow-auto"></div>
+        </details>
+      </div>
+      <button class="btn btn-primary !py-1.5 !px-4 text-xs font-bold flex-shrink-0" onclick="lockTuition()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Cập nhật lại học phí
+      </button>
+    </div>
+  </div>
+
   <div class="mt-4 overflow-auto">
     <table id="tuitionTable" class="table w-full">
       <thead>
@@ -149,7 +174,12 @@
     if (data.is_locked) {
       const records = await api(`/api/tuition/records?${query()}`);
       renderPreview(records, true);
+
+      // Kiểm tra dữ liệu lỗi thời
+      checkStaleness();
     } else {
+      // Ẩn cảnh báo khi chưa chốt
+      document.getElementById("staleWarning").classList.add("hidden");
       renderPreview(data.records, false);
     }
 
@@ -305,6 +335,51 @@
     }
   }
 
+  async function checkStaleness() {
+    const staleWarning = document.getElementById("staleWarning");
+    try {
+      const result = await api(`/api/tuition/check-stale?${query()}`);
+      if (result.is_stale) {
+        staleWarning.classList.remove("hidden");
+        document.getElementById("staleMessage").textContent = 
+          `Có ${result.stale_count} học sinh có thay đổi điểm danh kể từ lần chốt cuối. Bấm "Cập nhật lại học phí" để đồng bộ.`;
+        
+        // Hiện chi tiết
+        const detailsEl = document.getElementById("staleDetails");
+        const listEl = document.getElementById("staleDetailsList");
+        if (result.details && result.details.length > 0) {
+          detailsEl.classList.remove("hidden");
+          listEl.innerHTML = result.details.map(d => {
+            const sessionDiff = d.new_sessions - d.old_sessions;
+            const sessionSign = sessionDiff > 0 ? "+" : "";
+            const amountDiff = d.new_amount - d.old_amount;
+            const amountSign = amountDiff > 0 ? "+" : "";
+            return `<div class="flex items-center gap-2 py-1 border-b border-amber-100 last:border-b-0">
+              <span class="font-bold text-amber-800">${d.student_name}</span>
+              <span class="text-amber-500 font-mono">${d.student_code}</span>
+              <span class="ml-auto">
+                Buổi: ${d.old_sessions} → <span class="font-bold">${d.new_sessions}</span>
+                <span class="${sessionDiff > 0 ? 'text-green-600' : sessionDiff < 0 ? 'text-rose-600' : ''}">(${sessionSign}${sessionDiff})</span>
+              </span>
+              <span>
+                Tiền: ${formatMoney(d.old_amount)} → <span class="font-bold">${formatMoney(d.new_amount)}</span>
+                <span class="${amountDiff > 0 ? 'text-green-600' : amountDiff < 0 ? 'text-rose-600' : ''}">(${amountSign}${formatMoney(amountDiff)})</span>
+              </span>
+            </div>`;
+          }).join("");
+        } else {
+          detailsEl.classList.add("hidden");
+        }
+      } else {
+        staleWarning.classList.add("hidden");
+      }
+    } catch (err) {
+      // Lỗi check-stale không ảnh hưởng trải nghiệm chính
+      console.warn("Check stale failed:", err);
+      staleWarning.classList.add("hidden");
+    }
+  }
+
   async function lockTuition() {
     if (!requireConfirm("Chốt học phí tháng này? Nếu đã chốt trước đó, hệ thống sẽ tính lại học phí mới và ghi đè lên dữ liệu cũ.")) return;
     const payload = { 
@@ -314,6 +389,8 @@
     };
     const result = await api("/api/tuition/lock", { method: "POST", body: JSON.stringify(payload) });
     toast(`${result.message} Số phiếu: ${result.count}`);
+    // Ẩn cảnh báo lỗi thời sau khi chốt lại thành công
+    document.getElementById("staleWarning").classList.add("hidden");
     loadTuition();
   }
 

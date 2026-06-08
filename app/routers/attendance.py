@@ -10,7 +10,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models import Attendance, Enrollment
 from app.schemas import AttendanceBulkSave
-from app.services.tuition_service import is_period_locked
+from app.services.tuition_service import is_period_locked, sync_attendance_to_tuition
 from app.timezone import month_bounds
 
 router = APIRouter(prefix="/api/attendance", tags=["attendance"], dependencies=[Depends(get_current_user)])
@@ -51,6 +51,7 @@ def get_attendance(class_id: int, date: str, db: Session = Depends(get_db)):
 
 @router.post("/bulk")
 def save_attendance(payload: AttendanceBulkSave, db: Session = Depends(get_db)):
+    affected_student_ids = set()
     for item in payload.items:
         row = db.scalar(
             select(Attendance).where(
@@ -70,7 +71,14 @@ def save_attendance(payload: AttendanceBulkSave, db: Session = Depends(get_db)):
                     status=item.status,
                 )
             )
+        affected_student_ids.add(item.student_id)
     db.commit()
+
+    # Auto-sync: Cập nhật TuitionRecord đã chốt (nếu có)
+    for sid in affected_student_ids:
+        sync_attendance_to_tuition(db, sid, payload.class_id, payload.date)
+    db.commit()
+
     return {"message": "Đã lưu điểm danh."}
 
 
@@ -155,5 +163,10 @@ def save_single_attendance(payload: AttendanceSingleSave, db: Session = Depends(
             db.delete(row)
 
     db.commit()
+
+    # Auto-sync: Cập nhật TuitionRecord đã chốt (nếu có)
+    sync_attendance_to_tuition(db, payload.student_id, payload.class_id, payload.date)
+    db.commit()
+
     return {"message": "Saved"}
 

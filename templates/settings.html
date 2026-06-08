@@ -12,7 +12,18 @@
       <div class="md:col-span-2"><label class="label text-slate-700 font-semibold">Hotline</label><textarea class="field rounded-lg border-slate-200" name="center_hotline"></textarea></div>
       <div class="md:col-span-2"><label class="label text-slate-700 font-semibold">Lời giới thiệu</label><textarea class="field rounded-lg border-slate-200" name="receipt_intro"></textarea></div>
       <div class="md:col-span-2"><label class="label text-slate-700 font-semibold">Hạn nộp học phí</label><textarea class="field rounded-lg border-slate-200" name="payment_deadline"></textarea></div>
-      <div class="md:col-span-2"><label class="label text-slate-700 font-semibold">Mẫu nội dung chuyển khoản</label><input class="field rounded-lg border-slate-200" name="payment_content_template" /></div>
+      <div class="md:col-span-2">
+        <label class="label text-slate-700 font-semibold">Mẫu nội dung chuyển khoản</label>
+        <input class="field rounded-lg border-slate-200" name="payment_content_template" />
+        <span class="text-xs text-slate-500 mt-1 block">
+          Hỗ trợ các từ khóa: 
+          <strong>{ma_hoc_sinh}</strong> (Mã học sinh), 
+          <strong>{thang}</strong> (Tháng 2 chữ số), 
+          <strong>{nam_rut_gon}</strong> (Năm 2 chữ số), 
+          <strong>{ten_hoc_sinh}</strong> (Tên học sinh). 
+          Mẫu khuyên dùng: <code>HP {ma_hoc_sinh} {thang}{nam_rut_gon}</code> (sẽ tự động tạo ra dạng <code>HP 2026HS1 0626</code>).
+        </span>
+      </div>
       
       <!-- Đổi Lời cảm ơn -> Lưu ý và dùng textarea cho Summernote -->
       <div class="md:col-span-2">

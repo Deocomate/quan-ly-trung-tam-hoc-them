@@ -51,14 +51,14 @@ def render_receipt_html(records: list[TuitionRecord] | TuitionRecord, settings: 
     
     # Định nghĩa hàm helper lấy nội dung chuyển khoản động
     def get_payment_content(rec):
-        year_short = str(rec.year)[-2:]
-        payment_template = settings.get("payment_content_template", "{student_name} {month:02d}{year_short}")
-        return payment_template.format(
-            student_name=rec.student.full_name,
-            student_code=rec.student.student_code,
-            month=rec.month,
-            year=rec.year,
-            year_short=year_short,
+        from app.services.vietqr_service import safe_format_payment_content
+        payment_template = settings.get("payment_content_template", "HP {student_code} {month:02d}{year_short}")
+        return safe_format_payment_content(
+            payment_template,
+            rec.student.full_name,
+            rec.student.student_code,
+            rec.month,
+            rec.year
         )
         
     env.filters["currency"] = format_currency
@@ -600,14 +600,14 @@ def clean_html_for_reportlab(html: str) -> str:
 
 
 def _payment_content(record: TuitionRecord, settings: dict[str, str]) -> str:
-    year_short = str(record.year)[-2:]
-    payment_template = settings.get("payment_content_template", "{student_name} {month:02d}{year_short}")
-    return payment_template.format(
-        student_name=record.student.full_name,
-        student_code=record.student.student_code,
-        month=record.month,
-        year=record.year,
-        year_short=year_short,
+    from app.services.vietqr_service import safe_format_payment_content
+    payment_template = settings.get("payment_content_template", "HP {student_code} {month:02d}{year_short}")
+    return safe_format_payment_content(
+        payment_template,
+        record.student.full_name,
+        record.student.student_code,
+        record.month,
+        record.year
     )
 
 
