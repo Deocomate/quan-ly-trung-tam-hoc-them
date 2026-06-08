@@ -8,7 +8,7 @@
       <p class="text-sm text-slate-500 mt-0.5">Tạm tính lương theo số buổi dạy thực tế, doanh thu lớp học và chốt lịch sử lương.</p>
     </div>
     
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3">
       <div class="flex items-center gap-2">
         <label class="text-sm font-semibold text-slate-600">Tháng</label>
         <input id="payrollMonth" class="field rounded-lg border-slate-200 py-1.5 px-3 w-20" type="number" min="1" max="12" value="{{ today.month }}" onchange="fetchPayroll()" />
@@ -17,11 +17,25 @@
         <label class="text-sm font-semibold text-slate-600">Năm</label>
         <input id="payrollYear" class="field rounded-lg border-slate-200 py-1.5 px-3 w-24" type="number" min="2000" value="{{ today.year }}" onchange="fetchPayroll()" />
       </div>
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-semibold text-slate-600">Trạng thái</label>
+        <select id="payrollStatus" class="field rounded-lg border-slate-200 py-1.5 px-3 w-36" onchange="filterAndRenderPayroll()">
+          <option value="">Tất cả</option>
+          <option value="da_chi">Đã tất toán</option>
+          <option value="chua_chi">Chưa tất toán</option>
+        </select>
+      </div>
       <button id="exportAllPdfBtn" class="btn btn-muted border border-slate-200 py-2 px-4 rounded-lg flex items-center gap-1.5 font-bold text-slate-700 bg-white hover:bg-slate-50" onclick="exportAllPayrollPdf()">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
         </svg>
         Xuất toàn bộ PDF
+      </button>
+      <button id="exportAllExcelBtn" class="btn btn-muted border border-slate-200 py-2 px-4 rounded-lg flex items-center gap-1.5 font-bold text-slate-700 bg-white hover:bg-slate-50" onclick="exportAllPayrollExcel()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Xuất Excel
       </button>
       <button id="lockBtn" class="btn btn-primary font-bold py-2 px-4 rounded-lg hidden" onclick="lockPayroll()">
         Chốt bảng lương
@@ -37,7 +51,7 @@
   </div>
 
   <div class="overflow-auto mt-4">
-    <table class="table w-full">
+    <table id="payrollTable" class="table w-full text-sm">
       <thead>
         <tr>
           <th class="font-bold text-slate-700">Tên Giáo viên</th>
@@ -103,12 +117,64 @@
     </div>
   </div>
 </div>
+
+<!-- Modal Cập nhật thanh toán lương -->
+<div id="paymentModal" class="modal-backdrop hidden">
+  <form id="paymentForm" class="modal panel p-6 max-w-md bg-white rounded-xl shadow-lg border border-slate-200">
+    <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+      <h3 class="text-lg font-extrabold text-slate-800">Cập nhật chi trả lương</h3>
+      <button type="button" class="text-slate-400 hover:text-slate-600 font-bold text-xl" onclick="closePaymentModal()">&times;</button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <span class="text-xs text-slate-400 font-semibold block uppercase">Giáo viên</span>
+        <span id="paymentTeacherName" class="text-md font-bold text-slate-800 block"></span>
+      </div>
+      <div class="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm">
+        <div>
+          <span class="text-xs text-slate-400 font-semibold block uppercase">Lương tháng này</span>
+          <span id="paymentTotalAmount" class="font-bold text-slate-800 block"></span>
+        </div>
+        <div>
+          <span class="text-xs text-slate-400 font-semibold block uppercase">Nợ lương cũ</span>
+          <span id="paymentPriorUnpaid" class="font-bold text-rose-700 block"></span>
+        </div>
+        <div class="col-span-2 border-t border-slate-200 pt-2 mt-1">
+          <span class="text-xs text-slate-400 font-semibold block uppercase font-bold">Tổng cộng thực nhận</span>
+          <span id="paymentGrandTotal" class="text-md font-extrabold text-teal-800 block"></span>
+        </div>
+        <div class="col-span-2 border-t border-slate-200 pt-2">
+          <span class="text-xs text-slate-400 font-semibold block uppercase">Tổng đã chi trước đó</span>
+          <span id="paymentPrevPaid" class="font-bold text-slate-700 block"></span>
+        </div>
+      </div>
+      <input type="hidden" id="paymentRecordId" />
+      <div>
+        <label class="label text-slate-700 font-semibold mb-1">Số tiền đã chi (Tổng cộng)</label>
+        <div class="relative">
+          <input id="paymentPaidAmount" class="field rounded-lg border-slate-200 pr-12 font-bold text-teal-800" type="number" min="0" required />
+          <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400 font-bold text-sm">
+            VNĐ
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" class="btn btn-muted flex-1 py-2 font-bold justify-center" onclick="fillQuickPaid(0)">Đặt lại (0đ)</button>
+        <button type="button" class="btn btn-muted flex-1 py-2 font-bold justify-center" id="quickPaidFullBtn" onclick="fillQuickPaid(1)">Chi đủ</button>
+      </div>
+      <div class="flex justify-end gap-2 border-t border-slate-100 pt-4 mt-2">
+        <button type="button" class="btn btn-muted px-4 py-2 font-bold" onclick="closePaymentModal()">Hủy</button>
+        <button type="submit" class="btn btn-primary px-5 py-2 font-bold">Lưu thay đổi</button>
+      </div>
+    </div>
+  </form>
+</div>
 {% endblock %}
 
 {% block scripts %}
-<script>
   let payrollData = [];
   let isLocked = false;
+  let dataTableInstance = null;
 
   async function fetchPayroll() {
     const month = document.getElementById("payrollMonth").value;
@@ -118,32 +184,77 @@
 
     try {
       const data = await api(`/api/payroll/preview?month=${month}&year=${year}`);
-      payrollData = data.records;
       isLocked = data.is_locked;
 
       document.getElementById("lockedNotice").classList.toggle("hidden", !isLocked);
       const lockBtn = document.getElementById("lockBtn");
       if (isLocked) {
         lockBtn.classList.add("hidden");
+        // Gọi API lấy dữ liệu thực tế đã chốt
+        payrollData = await api(`/api/payroll/records?month=${month}&year=${year}`);
       } else {
         lockBtn.classList.remove("hidden");
+        payrollData = data.records;
       }
 
-      renderPayrollTable();
+      filterAndRenderPayroll();
     } catch (err) {
       toast(err.message, true);
     }
   }
 
-  function renderPayrollTable() {
+  function filterAndRenderPayroll() {
+    if (dataTableInstance) {
+      dataTableInstance.destroy();
+      dataTableInstance = null;
+    }
+
+    const filterStatus = document.getElementById("payrollStatus").value;
+    let filtered = payrollData;
+
+    if (filterStatus === "da_chi") {
+      filtered = payrollData.filter(p => {
+        if (!isLocked) return false;
+        const status = p.payment_status || "unpaid";
+        return status === "paid" || status === "overpaid";
+      });
+    } else if (filterStatus === "chua_chi") {
+      filtered = payrollData.filter(p => {
+        if (!isLocked) return true;
+        const status = p.payment_status || "unpaid";
+        return status === "unpaid" || status === "partial";
+      });
+    }
+
+    renderPayrollTable(filtered);
+
+    dataTableInstance = $("#payrollTable").DataTable({
+      language: {
+        search: "Tìm kiếm giáo viên:",
+        lengthMenu: "Hiển thị _MENU_ giáo viên",
+        info: "Đang xem _START_ đến _END_ trong tổng số _TOTAL_ giáo viên",
+        paginate: {
+          first: "Đầu",
+          last: "Cuối",
+          next: "Tiếp",
+          previous: "Trước"
+        },
+        emptyTable: "Không có dữ liệu chi trả lương trong kỳ hoặc bộ lọc không khớp."
+      },
+      pageLength: 10,
+      retrieve: true
+    });
+  }
+
+  function renderPayrollTable(records) {
     const rows = document.getElementById("payrollRows");
     let totalClassesCount = 0;
     let totalSessionsCount = 0;
     let totalRevenueSum = 0;
     let totalSalarySum = 0;
 
-    if (payrollData.length === 0) {
-      rows.innerHTML = `<tr><td colspan="7" class="text-slate-500 py-8 text-center">Không có dữ liệu giáo viên hoặc tính lương trong kỳ này.</td></tr>`;
+    if (records.length === 0) {
+      rows.innerHTML = `<tr><td colspan="7" class="text-slate-500 py-8 text-center font-semibold">Không có dữ liệu phù hợp.</td></tr>`;
       document.getElementById("totalClasses").textContent = "-";
       document.getElementById("totalSessions").textContent = "-";
       document.getElementById("totalRevenue").textContent = "-";
@@ -151,7 +262,7 @@
       return;
     }
 
-    rows.innerHTML = payrollData.map(p => {
+    rows.innerHTML = records.map(p => {
       const classesCount = p.classes.length;
       const sessionsCount = p.classes.reduce((sum, c) => sum + c.sessions, 0);
       const revenueSum = p.classes.reduce((sum, c) => sum + c.revenue, 0);
@@ -161,27 +272,52 @@
       totalRevenueSum += revenueSum;
       totalSalarySum += p.total_salary;
 
-      const statusBadge = isLocked 
-        ? `<span class="inline-block bg-teal-50 text-teal-700 text-xs px-2 py-0.5 rounded font-bold border border-teal-100">Đã chốt</span>`
-        : `<span class="inline-block bg-amber-50 text-amber-700 text-xs px-2 py-0.5 rounded font-bold border border-amber-100">Tạm tính</span>`;
+      let statusBadge = "";
+      if (!isLocked) {
+        statusBadge = `<span class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded font-bold border border-slate-200">Tạm tính</span>`;
+      } else {
+        const status = p.payment_status || "unpaid";
+        if (status === "paid") {
+          statusBadge = `<span class="inline-block bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded font-bold border border-green-100">Đã tất toán</span>`;
+        } else if (status === "overpaid") {
+          statusBadge = `<span class="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-bold border border-blue-100">Trả dư</span>`;
+        } else if (status === "partial") {
+          statusBadge = `<span class="inline-block bg-amber-50 text-amber-700 text-xs px-2 py-0.5 rounded font-bold border border-amber-100">Chi một phần</span>`;
+        } else {
+          statusBadge = `<span class="inline-block bg-rose-50 text-rose-700 text-xs px-2 py-0.5 rounded font-bold border border-rose-100">Chưa trả</span>`;
+        }
+      }
 
       // Nút in PDF hoặc in phiếu tạm
       const pdfBtn = isLocked 
-        ? `<button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="downloadPayrollPdf(${p.teacher_id})">In phiếu lương</button>`
+        ? `<button class="btn btn-muted border border-slate-200 !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="downloadPayrollPdf(${p.teacher_id})">In phiếu lương</button>`
         : `<button class="btn border border-slate-200 !min-height-0 !py-1 !px-2.5 text-xs text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-200 font-semibold" onclick="downloadPayrollPdf(${p.teacher_id})">In phiếu tạm</button>`;
+
+      let payBtn = "";
+      if (isLocked && p.id) {
+        const escName = p.teacher_name.replace(/'/g, "\\'");
+        payBtn = `<button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="openPaymentModal(${p.id}, '${escName}', ${p.total_salary}, ${p.paid_amount || 0}, ${p.prior_unpaid || 0}, ${p.grand_total || p.total_salary})">Thanh toán</button>`;
+      }
 
       return `
         <tr>
-          <td class="font-bold text-slate-800">${p.teacher_name}</td>
+          <td class="font-bold text-slate-800">
+            <div>${p.teacher_name}</div>
+            ${isLocked && p.prior_unpaid > 0 ? `<div class="text-[10px] text-rose-600 font-semibold mt-0.5">⚠️ Nợ cũ: ${formatMoney(p.prior_unpaid)}</div>` : ''}
+          </td>
           <td class="text-center font-semibold text-slate-600">${classesCount}</td>
           <td class="text-center font-mono">${sessionsCount}</td>
           <td class="text-right font-mono text-slate-700">${formatMoney(revenueSum)}</td>
-          <td class="text-right font-mono font-bold text-slate-800">${formatMoney(p.total_salary)}</td>
+          <td class="text-right font-mono font-bold text-slate-800">
+            <div>${formatMoney(p.total_salary)}</div>
+            ${isLocked && p.prior_unpaid > 0 ? `<div class="text-[10px] text-teal-700 font-bold mt-0.5">Cộng: ${formatMoney(p.grand_total)}</div>` : ''}
+          </td>
           <td class="text-center">${statusBadge}</td>
           <td class="text-center">
             <div class="flex justify-center gap-1.5">
               <button class="btn btn-muted border border-slate-200 !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="viewDetails(${p.teacher_id})">Chi tiết</button>
               ${pdfBtn}
+              ${payBtn}
             </div>
           </td>
         </tr>
@@ -243,6 +379,53 @@
     document.getElementById("detailModal").classList.add("hidden");
   }
 
+  let currentTotalForModal = 0;
+
+  function openPaymentModal(recordId, name, total, paid, priorUnpaid = 0, grandTotal = total) {
+    document.getElementById("paymentRecordId").value = recordId;
+    document.getElementById("paymentTeacherName").textContent = name;
+    document.getElementById("paymentTotalAmount").textContent = formatMoney(total);
+    document.getElementById("paymentPriorUnpaid").textContent = formatMoney(priorUnpaid);
+    document.getElementById("paymentGrandTotal").textContent = formatMoney(grandTotal);
+    document.getElementById("paymentPrevPaid").textContent = formatMoney(paid);
+    document.getElementById("paymentPaidAmount").value = paid;
+    currentTotalForModal = grandTotal;
+    
+    document.getElementById("paymentModal").classList.remove("hidden");
+  }
+
+  function closePaymentModal() {
+    document.getElementById("paymentModal").classList.add("hidden");
+    document.getElementById("paymentForm").reset();
+  }
+
+  function fillQuickPaid(type) {
+    const input = document.getElementById("paymentPaidAmount");
+    if (type === 0) {
+      input.value = 0;
+    } else if (type === 1) {
+      input.value = currentTotalForModal;
+    }
+  }
+
+  document.getElementById("paymentForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const recordId = document.getElementById("paymentRecordId").value;
+    const paidAmount = Number(document.getElementById("paymentPaidAmount").value);
+    
+    try {
+      await api(`/api/payroll/records/${recordId}/payment`, {
+        method: "PUT",
+        body: JSON.stringify({ paid_amount: paidAmount })
+      });
+      toast("Đã cập nhật chi trả lương thành công.");
+      closePaymentModal();
+      await fetchPayroll();
+    } catch (err) {
+      toast("Lỗi khi cập nhật chi trả lương: " + err.message, true);
+    }
+  });
+
   async function lockPayroll() {
     const month = document.getElementById("payrollMonth").value;
     const year = document.getElementById("payrollYear").value;
@@ -278,7 +461,19 @@
     window.open(`/api/payroll/export-pdf?month=${month}&year=${year}`, "_blank");
   }
 
-  // Khởi chạy
+  function exportAllPayrollExcel() {
+    const month = document.getElementById("payrollMonth").value;
+    const year = document.getElementById("payrollYear").value;
+    const status = document.getElementById("payrollStatus").value;
+    if (!month || !year) return;
+    window.open(`/api/payroll/export-excel?month=${month}&year=${year}&status=${status}`, "_blank");
+  }
+
+  $("#payrollStatus").select2({
+    minimumResultsForSearch: -1,
+    width: '100%'
+  });
+
   fetchPayroll();
 </script>
 {% endblock %}

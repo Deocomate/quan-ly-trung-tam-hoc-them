@@ -13,7 +13,7 @@
     </div>
   </div>
 
-  <div class="mt-4 grid gap-4 sm:grid-cols-5 items-end bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
+  <div class="mt-4 grid gap-4 sm:grid-cols-6 items-end bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
     <div>
       <label class="label text-slate-700 font-semibold mb-1">Tháng</label>
       <input id="month" class="field rounded-lg border-slate-200" type="number" min="1" max="12" />
@@ -42,6 +42,14 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         Xuất PDF hàng loạt
+      </a>
+    </div>
+    <div>
+      <a id="excelLink" class="btn btn-muted w-full justify-center rounded-lg font-bold text-teal-700 hover:text-teal-800" href="#">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Xuất Excel
       </a>
     </div>
   </div>
@@ -104,14 +112,22 @@
           <span id="paymentStudentName" class="text-md font-bold text-slate-800 block"></span>
           <span id="paymentStudentCode" class="text-xs text-slate-500 font-mono block mt-0.5"></span>
         </div>
-        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+        <div class="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm">
           <div>
-            <span class="text-xs text-slate-400 font-semibold block uppercase">Tổng học phí</span>
-            <span id="paymentTotalAmount" class="text-md font-extrabold text-teal-800 block"></span>
+            <span class="text-xs text-slate-400 font-semibold block uppercase">Học phí tháng này</span>
+            <span id="paymentTotalAmount" class="font-bold text-slate-800 block"></span>
           </div>
           <div>
-            <span class="text-xs text-slate-400 font-semibold block uppercase">Đã đóng trước đó</span>
-            <span id="paymentPrevPaid" class="text-md font-bold text-slate-700 block"></span>
+            <span class="text-xs text-slate-400 font-semibold block uppercase">Nợ cũ mang sang</span>
+            <span id="paymentPriorDebt" class="font-bold text-rose-700 block"></span>
+          </div>
+          <div class="col-span-2 border-t border-slate-200 pt-2 mt-1">
+            <span class="text-xs text-slate-400 font-semibold block uppercase font-bold">Tổng cộng phải đóng</span>
+            <span id="paymentGrandTotal" class="text-md font-extrabold text-teal-800 block"></span>
+          </div>
+          <div class="col-span-2 border-t border-slate-200 pt-2">
+            <span class="text-xs text-slate-400 font-semibold block uppercase">Tổng đã đóng trước đó</span>
+            <span id="paymentPrevPaid" class="font-bold text-slate-700 block"></span>
           </div>
         </div>
         <input type="hidden" id="paymentRecordId" />
@@ -185,6 +201,7 @@
     notice.textContent = data.is_locked ? `Kỳ học phí đã chốt${data.locked_at ? ` lúc ${data.locked_at}` : ""}. Bạn vẫn có thể sửa điểm danh và chốt học phí lại để ghi đè dữ liệu cũ.` : "";
     
     document.getElementById("zipLink").href = `/api/tuition/export-pdf?${query()}`;
+    document.getElementById("excelLink").href = `/api/tuition/export-excel?${query()}`;
     
     if (data.is_locked) {
       allTuitionData = await api(`/api/tuition/records?${query()}`);
@@ -308,7 +325,7 @@
       let payBtn = "";
       if (isLocked) {
         const escName = row.student_name.replace(/'/g, "\\'");
-        payBtn = `<button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold ml-1.5" onclick="openPaymentModal(${row.id}, '${escName}', '${row.student_code}', ${total}, ${paid})">Thanh toán</button>`;
+        payBtn = `<button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold ml-1.5" onclick="openPaymentModal(${row.id}, '${escName}', '${row.student_code}', ${total}, ${paid}, ${row.prior_debt || 0}, ${row.grand_total || total})">Thanh toán</button>`;
       }
 
       return `
@@ -336,14 +353,16 @@
 
   let currentTotalForModal = 0;
   
-  function openPaymentModal(recordId, name, code, total, paid) {
+  function openPaymentModal(recordId, name, code, total, paid, priorDebt = 0, grandTotal = total) {
     document.getElementById("paymentRecordId").value = recordId;
     document.getElementById("paymentStudentName").textContent = name;
     document.getElementById("paymentStudentCode").textContent = code;
     document.getElementById("paymentTotalAmount").textContent = formatMoney(total);
+    document.getElementById("paymentPriorDebt").textContent = formatMoney(priorDebt);
+    document.getElementById("paymentGrandTotal").textContent = formatMoney(grandTotal);
     document.getElementById("paymentPrevPaid").textContent = formatMoney(paid);
     document.getElementById("paymentPaidAmount").value = paid;
-    currentTotalForModal = total;
+    currentTotalForModal = grandTotal;
     
     document.getElementById("paymentModal").classList.remove("hidden");
   }

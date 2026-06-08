@@ -4,6 +4,7 @@ import re
 import unicodedata
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -89,14 +90,28 @@ def list_records(month: int | None = None, year: int | None = None, db: Session 
         stmt = stmt.where(TeacherSalaryRecord.year == year)
         
     rows = db.scalars(stmt.order_by(TeacherSalaryRecord.year.desc(), TeacherSalaryRecord.month.desc())).all()
-    return [
-        {
+    from sqlalchemy import func
+    results = []
+    for row in rows:
+        prior_unpaid_stmt = (
+            select(func.coalesce(func.sum(TeacherSalaryRecord.total_amount - TeacherSalaryRecord.paid_amount), 0))
+            .where(
+                TeacherSalaryRecord.teacher_id == row.teacher_id,
+                (TeacherSalaryRecord.year < row.year) | ((TeacherSalaryRecord.year == row.year) & (TeacherSalaryRecord.month < row.month))
+            )
+        )
+        prior_unpaid = db.scalar(prior_unpaid_stmt) or 0
+        results.append({
             "id": row.id,
             "teacher_id": row.teacher_id,
             "teacher_name": row.teacher.full_name,
             "month": row.month,
             "year": row.year,
             "total_amount": row.total_amount,
+            "paid_amount": row.paid_amount,
+            "payment_status": row.payment_status,
+            "prior_unpaid": prior_unpaid,
+            "grand_total": row.total_amount + prior_unpaid,
             "is_locked": row.is_locked,
             "locked_at": row.locked_at.isoformat() if row.locked_at else None,
             "items": [
@@ -116,9 +131,8 @@ def list_records(month: int | None = None, year: int | None = None, db: Session 
                 }
                 for item in row.items
             ]
-        }
-        for row in rows
-    ]
+        })
+    return results
 
 
 @router.get("/records/{record_id}/pdf")
@@ -230,3 +244,48 @@ def export_payroll_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+class PayrollPaymentUpdate(BaseModel):
+    paid_amount: int
+
+
+@router.put("/records/{record_id}/payment")
+def update_payroll_payment(record_id: int, payload: PayrollPaymentUpdate, db: Session = Depends(get_db)):
+    record = db.get(TeacherSalaryRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiếu lương.")
+    
+    if payload.paid_amount < 0:
+        raise HTTPException(status_code=400, detail="Số tiền chi trả không được âm.")
+        
+    from app.services.payroll_service import allocate_teacher_payment
+    allocate_teacher_payment(db, record.teacher_id, payload.paid_amount, record.month, record.year)
+    
+    db.refresh(record)
+    return {
+        "message": "Đã cập nhật chi trả lương.",
+        "paid_amount": record.paid_amount,
+        "payment_status": record.payment_status,
+        "remaining": max(0, record.total_amount - record.paid_amount)
+    }
+
+
+@router.get("/export-excel")
+def export_payroll_excel(
+    month: int,
+    year: int,
+    status: str | None = None,
+    db: Session = Depends(get_db)
+):
+    from app.services.excel_service import generate_payroll_excel
+    
+    excel_data = generate_payroll_excel(db, month, year, status)
+    filename = f"luong-giao-vien-{month:02d}-{year}.xlsx"
+    
+    return Response(
+        content=excel_data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+

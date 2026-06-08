@@ -558,7 +558,267 @@ def test_advanced_payroll_and_deactivation() -> None:
                 "assignments": [],  # Tried to remove assignment completely
             },
         )
-        # Should return 400 Bad Request
         assert delete_assignment_resp.status_code == 400
         assert "Không thể xóa giáo viên" in delete_assignment_resp.json()["detail"]
+
+
+def test_payroll_settlement_and_carryover() -> None:
+    with TestClient(app) as client:
+        login(client)
+
+        # 1. Create Teacher
+        t_resp = client.post(
+            "/api/teachers",
+            json={
+                "full_name": "TEST_TCH_CARRYOVER",
+                "phone": "0988888881",
+                "email": "tc@test.com",
+                "default_salary_coefficient": 1.0,
+                "is_active": True,
+            },
+        )
+        assert t_resp.status_code == 200
+        t = t_resp.json()
+
+        # 2. Create Class & Assignment
+        c_resp = client.post(
+            "/api/classes",
+            json={
+                "name": "TEST_CL_CARRYOVER",
+                "subject": "TOAN",
+                "default_fee": 100000,
+                "notes": "",
+                "is_active": True,
+                "assignments": [
+                    {
+                        "teacher_id": t["id"],
+                        "role": "main",
+                        "salary_type": "fixed",
+                        "fixed_salary_per_session": 400000,
+                        "fixed_present_salary": 400000,
+                        "fixed_late_salary": 250000,
+                        "fixed_absent_salary": 5000,
+                    }
+                ],
+            },
+        )
+        assert c_resp.status_code == 200
+        c = c_resp.json()
+
+        # 3. Add Teacher Attendance for Nov 2099 (Month 11) - 1 session present
+        client.put("/api/teacher-attendance/single", json={"class_id": c["id"], "teacher_id": t["id"], "date": "2099-11-01", "status": "P"})
+
+        # 4. Lock Nov 2099 Payroll Period
+        lock_nov = client.post("/api/payroll/lock", json={"month": 11, "year": 2099})
+        assert lock_nov.status_code == 200
+
+        # Verify Nov record is unpaid initially (total = 400k)
+        records_nov = client.get("/api/payroll/records?month=11&year=2099").json()
+        nov_rec = next(r for r in records_nov if r["teacher_id"] == t["id"])
+        assert nov_rec["total_amount"] == 400000
+        assert nov_rec["paid_amount"] == 0
+        assert nov_rec["payment_status"] == "unpaid"
+
+        # 5. Check Dec 2099 Payroll preview: prior_unpaid should carry over as 400k
+        preview_dec = client.get("/api/payroll/preview?month=12&year=2099").json()
+        dec_rec_prev = next(r for r in preview_dec["records"] if r["teacher_id"] == t["id"])
+        assert dec_rec_prev["prior_unpaid"] == 400000
+        assert dec_rec_prev["grand_total"] == 400000
+
+        # Add Teacher Attendance for Dec 2099 (Month 12) - 1 session present (total salary for Dec is 400k)
+        client.put("/api/teacher-attendance/single", json={"class_id": c["id"], "teacher_id": t["id"], "date": "2099-12-01", "status": "P"})
+
+        # Lock Dec 2099 Payroll
+        lock_dec = client.post("/api/payroll/lock", json={"month": 12, "year": 2099})
+        assert lock_dec.status_code == 200
+
+        # Verify Dec record carries over prior unpaid (grand total = 800k)
+        records_dec = client.get("/api/payroll/records?month=12&year=2099").json()
+        dec_rec = next(r for r in records_dec if r["teacher_id"] == t["id"])
+        assert dec_rec["total_amount"] == 400000
+        assert dec_rec["prior_unpaid"] == 400000
+        assert dec_rec["grand_total"] == 800000
+        assert dec_rec["paid_amount"] == 0
+        assert dec_rec["payment_status"] == "unpaid"
+
+        # 6. Pay 500k in Month 12: should pay Month 11 in full (400k) and Month 12 in part (100k)
+        pay_resp = client.put(f"/api/payroll/records/{dec_rec['id']}/payment", json={"paid_amount": 500000}) # Month 12's new paid amount will be 100k, and 400k is allocated to Nov
+        assert pay_resp.status_code == 200
+
+        # Fetch records again
+        records_nov_new = client.get("/api/payroll/records?month=11&year=2099").json()
+        nov_rec_new = next(r for r in records_nov_new if r["teacher_id"] == t["id"])
+        assert nov_rec_new["paid_amount"] == 400000
+        assert nov_rec_new["payment_status"] == "paid"
+
+        records_dec_new = client.get("/api/payroll/records?month=12&year=2099").json()
+        dec_rec_new = next(r for r in records_dec_new if r["teacher_id"] == t["id"])
+        assert dec_rec_new["paid_amount"] == 100000
+        assert dec_rec_new["payment_status"] == "partial"
+        assert dec_rec_new["prior_unpaid"] == 0  # because Nov is paid
+        assert dec_rec_new["grand_total"] == 400000
+
+        # 7. Pay another 300k to complete Month 12 payment (new total for Month 12 = 400k)
+        pay_resp_2 = client.put(f"/api/payroll/records/{dec_rec['id']}/payment", json={"paid_amount": 400000})
+        assert pay_resp_2.status_code == 200
+
+        records_nov_final = client.get("/api/payroll/records?month=11&year=2099").json()
+        nov_rec_final = next(r for r in records_nov_final if r["teacher_id"] == t["id"])
+        assert nov_rec_final["paid_amount"] == 400000
+        assert nov_rec_final["payment_status"] == "paid"
+
+        records_dec_final = client.get("/api/payroll/records?month=12&year=2099").json()
+        dec_rec_final = next(r for r in records_dec_final if r["teacher_id"] == t["id"])
+        assert dec_rec_final["paid_amount"] == 400000
+        assert dec_rec_final["payment_status"] == "paid"
+
+
+def test_tuition_settlement_and_carryover() -> None:
+    with TestClient(app) as client:
+        login(client)
+
+        # 1. Create Student
+        s_resp = client.post(
+            "/api/students",
+            json={
+                "student_code": "TEST_ST_CARRYOVER",
+                "full_name": "TEST_STU_CARRYOVER",
+                "parent_phone": "0988888882",
+                "notes": "",
+                "is_active": True,
+            },
+        )
+        assert s_resp.status_code == 200
+        s = s_resp.json()
+
+        # 2. Create Class & Enrollment (Tuition = 100k/session)
+        c_resp = client.post(
+            "/api/classes",
+            json={
+                "name": "TEST_CL_T_CARRYOVER",
+                "subject": "TOAN",
+                "default_fee": 100000,
+                "notes": "",
+                "is_active": True,
+                "assignments": [],
+            },
+        )
+        assert c_resp.status_code == 200
+        c = c_resp.json()
+
+        enroll_resp = client.post(
+            "/api/enrollments",
+            json={
+                "student_id": s["id"],
+                "class_ids": [c["id"]],
+                "custom_fee": None,
+                "is_exempt": False,
+                "start_date": "2099-11-01",
+                "is_active": True,
+                "notes": "",
+            },
+        )
+        assert enroll_resp.status_code == 200
+
+        # 3. Add student attendance for Nov 2099 (1 session P)
+        client.post("/api/attendance/bulk", json={"class_id": c["id"], "date": "2099-11-01", "items": [{"student_id": s["id"], "status": "P"}]})
+
+        # 4. Lock Nov 2099 Tuition
+        lock_nov = client.post("/api/tuition/lock", json={"month": 11, "year": 2099, "class_id": None})
+        assert lock_nov.status_code == 200
+
+        # Verify Nov record is unpaid initially (1 session * 100k = 100k)
+        records_nov = client.get("/api/tuition/records?month=11&year=2099").json()
+        nov_rec = next(r for r in records_nov if r["student_id"] == s["id"])
+        assert nov_rec["total_amount"] == 100000
+        assert nov_rec["paid_amount"] == 0
+        assert nov_rec["payment_status"] == "unpaid"
+
+        # 5. Check Dec 2099 Tuition preview: prior_debt should carry over as 100k
+        preview_dec = client.get("/api/tuition/preview?month=12&year=2099").json()
+        dec_rec_prev = next(r for r in preview_dec["records"] if r["student_id"] == s["id"])
+        assert dec_rec_prev["prior_debt"] == 100000
+        assert dec_rec_prev["grand_total"] == 100000
+
+        # Add Student Attendance for Dec 2099 - 1 session P (Dec tuition is 100k)
+        client.post("/api/attendance/bulk", json={"class_id": c["id"], "date": "2099-12-01", "items": [{"student_id": s["id"], "status": "P"}]})
+
+        # Lock Dec 2099 Tuition
+        lock_dec = client.post("/api/tuition/lock", json={"month": 12, "year": 2099, "class_id": None})
+        assert lock_dec.status_code == 200
+
+        # Verify Dec record carries over prior debt (grand total = 200k)
+        records_dec = client.get("/api/tuition/records?month=12&year=2099").json()
+        dec_rec = next(r for r in records_dec if r["student_id"] == s["id"])
+        assert dec_rec["total_amount"] == 100000
+        assert dec_rec["prior_debt"] == 100000
+        assert dec_rec["grand_total"] == 200000
+        assert dec_rec["paid_amount"] == 0
+        assert dec_rec["payment_status"] == "unpaid"
+
+        # 6. Pay 150k in Month 12: should pay Month 11 in full (100k) and Month 12 in part (50k)
+        pay_resp = client.put(f"/api/tuition/records/{dec_rec['id']}/payment", json={"paid_amount": 150000}) # Month 12's new paid amount will be 50k, and 100k is allocated to Nov
+        assert pay_resp.status_code == 200
+
+        # Fetch records again
+        records_nov_new = client.get("/api/tuition/records?month=11&year=2099").json()
+        nov_rec_new = next(r for r in records_nov_new if r["student_id"] == s["id"])
+        assert nov_rec_new["paid_amount"] == 100000
+        assert nov_rec_new["payment_status"] == "paid"
+
+        records_dec_new = client.get("/api/tuition/records?month=12&year=2099").json()
+        dec_rec_new = next(r for r in records_dec_new if r["student_id"] == s["id"])
+        assert dec_rec_new["paid_amount"] == 50000
+        assert dec_rec_new["payment_status"] == "partial"
+        assert dec_rec_new["prior_debt"] == 0  # because Nov is paid
+        assert dec_rec_new["grand_total"] == 100000
+
+        # 7. Pay another 50k to complete Month 12 payment (new total for Month 12 = 100k)
+        pay_resp_2 = client.put(f"/api/tuition/records/{dec_rec['id']}/payment", json={"paid_amount": 100000})
+        assert pay_resp_2.status_code == 200
+
+        records_nov_final = client.get("/api/tuition/records?month=11&year=2099").json()
+        nov_rec_final = next(r for r in records_nov_final if r["student_id"] == s["id"])
+        assert nov_rec_final["paid_amount"] == 100000
+        assert nov_rec_final["payment_status"] == "paid"
+
+        records_dec_final = client.get("/api/tuition/records?month=12&year=2099").json()
+        dec_rec_final = next(r for r in records_dec_final if r["student_id"] == s["id"])
+        assert dec_rec_final["paid_amount"] == 100000
+        assert dec_rec_final["payment_status"] == "paid"
+
+
+def test_optional_dob_and_excel_exports() -> None:
+    with TestClient(app) as client:
+        login(client)
+
+        # 1. Test student creation with null date_of_birth
+        s_resp = client.post(
+            "/api/students",
+            json={
+                "student_code": "TEST_ST_NODOB",
+                "full_name": "TEST_STUDENT_NODOB",
+                "parent_phone": "0911111111",
+                "date_of_birth": None,
+                "notes": "No DOB provided",
+                "is_active": True,
+            },
+        )
+        assert s_resp.status_code == 200
+        s = s_resp.json()
+        assert s["date_of_birth"] is None
+
+        # 2. Test Tuition Excel export endpoint
+        tuition_excel_resp = client.get("/api/tuition/export-excel?month=12&year=2099")
+        assert tuition_excel_resp.status_code == 200
+        assert tuition_excel_resp.headers["Content-Type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        assert "hoc-phi-12-2099.xlsx" in tuition_excel_resp.headers.get("Content-Disposition", "")
+
+        # 3. Test Payroll Excel export endpoint
+        payroll_excel_resp = client.get("/api/payroll/export-excel?month=12&year=2099")
+        assert payroll_excel_resp.status_code == 200
+        assert payroll_excel_resp.headers["Content-Type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        assert "luong-giao-vien-12-2099.xlsx" in payroll_excel_resp.headers.get("Content-Disposition", "")
+
+
 

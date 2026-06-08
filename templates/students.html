@@ -228,6 +228,9 @@
     const data = formDataJson(event.target);
     const id = data.id;
     delete data.id;
+    if (data.date_of_birth === "") {
+      data.date_of_birth = null;
+    }
     await api(id ? `/api/students/${id}` : "/api/students", { method: id ? "PUT" : "POST", body: JSON.stringify(data) });
     closeStudentForm();
     toast("Đã lưu thông tin học sinh thành công.");

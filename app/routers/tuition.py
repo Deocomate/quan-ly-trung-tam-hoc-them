@@ -6,6 +6,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth import get_current_user
@@ -26,6 +27,8 @@ def _preview_to_dict(item):
         "student_name": item.student_name,
         "total_sessions": item.total_sessions,
         "total_amount": item.total_amount,
+        "prior_debt": item.prior_debt,
+        "grand_total": item.grand_total,
         "items": [row.__dict__ for row in item.items],
     }
 
@@ -58,8 +61,18 @@ def lock_tuition(payload: TuitionLockRequest, user: User = Depends(get_current_u
 @router.get("/records")
 def records(month: int | None = None, year: int | None = None, class_id: int | None = None, db: Session = Depends(get_db)):
     rows = list_records(db, month, year, class_id)
-    return [
-        {
+    from sqlalchemy import func
+    results = []
+    for row in rows:
+        prior_debt_stmt = (
+            select(func.coalesce(func.sum(TuitionRecord.total_amount - TuitionRecord.paid_amount), 0))
+            .where(
+                TuitionRecord.student_id == row.student_id,
+                (TuitionRecord.year < row.year) | ((TuitionRecord.year == row.year) & (TuitionRecord.month < row.month))
+            )
+        )
+        prior_debt = db.scalar(prior_debt_stmt) or 0
+        results.append({
             "id": row.id,
             "student_id": row.student_id,
             "student_code": row.student.student_code,
@@ -71,6 +84,8 @@ def records(month: int | None = None, year: int | None = None, class_id: int | N
             "transfer_code": row.transfer_code,
             "paid_amount": row.paid_amount,
             "payment_status": row.payment_status,
+            "prior_debt": prior_debt,
+            "grand_total": row.total_amount + prior_debt,
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
             "items": [
@@ -85,9 +100,8 @@ def records(month: int | None = None, year: int | None = None, class_id: int | N
                 }
                 for item in row.items
             ],
-        }
-        for row in rows
-    ]
+        })
+    return results
 
 
 @router.get("/records/{record_id}/pdf")
@@ -200,22 +214,35 @@ def update_tuition_payment(record_id: int, payload: TuitionPaymentUpdate, db: Se
     if payload.paid_amount < 0:
         raise HTTPException(status_code=400, detail="Số tiền thanh toán không được âm.")
         
-    record.paid_amount = payload.paid_amount
+    from app.services.tuition_service import allocate_student_payment
+    allocate_student_payment(db, record.student_id, payload.paid_amount, record.month, record.year)
     
-    if record.paid_amount > record.total_amount:
-        record.payment_status = "overpaid"
-    elif record.paid_amount == record.total_amount:
-        record.payment_status = "paid"
-    elif record.paid_amount > 0:
-        record.payment_status = "partial"
-    else:
-        record.payment_status = "unpaid"
-        
-    db.commit()
+    db.refresh(record)
     return {
         "message": "Đã cập nhật thanh toán.",
         "paid_amount": record.paid_amount,
         "payment_status": record.payment_status,
         "debt": max(0, record.total_amount - record.paid_amount)
     }
+
+
+@router.get("/export-excel")
+def export_tuition_excel(
+    month: int,
+    year: int,
+    class_id: int | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db)
+):
+    from app.services.excel_service import generate_tuition_excel
+    
+    excel_data = generate_tuition_excel(db, month, year, class_id, status)
+    filename = f"hoc-phi-{month:02d}-{year}.xlsx"
+    
+    return Response(
+        content=excel_data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 

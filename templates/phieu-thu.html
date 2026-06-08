@@ -9,8 +9,39 @@
         size: A4 landscape;
         margin: 10mm;
       }
+      @font-face {
+        font-family: "Times New Roman";
+        src: local("Times New Roman"),
+             url("file:///C:/Windows/Fonts/times.ttf");
+        font-weight: normal;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Times New Roman";
+        src: local("Times New Roman Bold"),
+             local("Times New Roman-Bold"),
+             url("file:///C:/Windows/Fonts/timesbd.ttf");
+        font-weight: bold;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Times New Roman";
+        src: local("Times New Roman Italic"),
+             local("Times New Roman-Italic"),
+             url("file:///C:/Windows/Fonts/timesi.ttf");
+        font-weight: normal;
+        font-style: italic;
+      }
+      @font-face {
+        font-family: "Times New Roman";
+        src: local("Times New Roman Bold Italic"),
+             local("Times New Roman-BoldItalic"),
+             url("file:///C:/Windows/Fonts/timesbi.ttf");
+        font-weight: bold;
+        font-style: italic;
+      }
       body {
-        font-family: "Times New Roman", Times, serif;
+        font-family: "Times New Roman", "Liberation Serif", serif;
         color: #000;
         background: #fff;
         margin: 0;
@@ -164,11 +195,6 @@
                 </div>
                 <div style="margin-top: 4px">{{ settings.receipt_intro }}</div>
               </div>
-              {% if record.is_recalculated %}
-              <div style="margin: 4px 8px; color: #b45309; background-color: #fef3c7; border: 1px solid #fde68a; padding: 6px; border-radius: 4px; font-weight: bold; font-size: 13px; text-align: left;">
-                ⚠️ Học phí đã tính lại lúc {{ record.recalculated_at_str }} do thay đổi điểm danh.
-              </div>
-              {% endif %}
               <table>
                 <thead>
                   <tr>

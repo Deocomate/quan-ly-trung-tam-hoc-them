@@ -106,6 +106,14 @@ def init_db() -> None:
         if "parent_name" not in student_cols:
             conn.execute(text("ALTER TABLE students ADD COLUMN parent_name VARCHAR(160)"))
 
+        # --- Columns on 'teacher_salary_records' ---
+        cursor = conn.execute(text("PRAGMA table_info(teacher_salary_records)"))
+        tsr_cols = [row[1] for row in cursor.fetchall()]
+        if "paid_amount" not in tsr_cols:
+            conn.execute(text("ALTER TABLE teacher_salary_records ADD COLUMN paid_amount INTEGER DEFAULT 0 NOT NULL"))
+        if "payment_status" not in tsr_cols:
+            conn.execute(text("ALTER TABLE teacher_salary_records ADD COLUMN payment_status VARCHAR(20) DEFAULT 'unpaid' NOT NULL"))
+
         # --- Data migration: classes.teacher_id → teacher_class_assignments ---
         # Tạo phân công cho các lớp có teacher_id cũ nhưng chưa có bản ghi trong bảng mới
         rows = conn.execute(

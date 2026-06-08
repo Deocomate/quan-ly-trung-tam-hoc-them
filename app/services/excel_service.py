@@ -1,7 +1,7 @@
 from io import BytesIO
 import datetime
 from sqlalchemy import func, select, distinct
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -464,6 +464,254 @@ def generate_class_attendance_excel(
         ws.column_dimensions[col_letter].width = 8
     ws.column_dimensions[col_letter_last].width = 16
     
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+def generate_tuition_excel(db: Session, month: int, year: int, class_id: int | None = None, status: str | None = None) -> bytes:
+    from app.services.tuition_service import list_records
+    
+    records = list_records(db, month, year, class_id)
+    
+    filtered_records = []
+    for row in records:
+        prior_debt_stmt = (
+            select(func.coalesce(func.sum(TuitionRecord.total_amount - TuitionRecord.paid_amount), 0))
+            .where(
+                TuitionRecord.student_id == row.student_id,
+                (TuitionRecord.year < row.year) | ((TuitionRecord.year == row.year) & (TuitionRecord.month < row.month))
+            )
+        )
+        row.prior_debt = db.scalar(prior_debt_stmt) or 0
+        row.grand_total = row.total_amount + row.prior_debt
+        row.remaining_debt = max(0, row.total_amount - row.paid_amount)
+        
+        stat = row.payment_status or "unpaid"
+        if status == "da_thu" and stat not in ["paid", "overpaid"]:
+            continue
+        if status == "chua_thu" and stat in ["paid", "overpaid"]:
+            continue
+            
+        filtered_records.append(row)
+        
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Học phí T{month:02d}-{year}"
+    ws.views.sheetView[0].showGridLines = True
+    
+    font_family = "Segoe UI"
+    title_font = Font(name=font_family, size=16, bold=True, color="0F2A33")
+    header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
+    bold_font = Font(name=font_family, size=11, bold=True, color="10202B")
+    regular_font = Font(name=font_family, size=11, color="10202B")
+    
+    fill_header = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid")
+    fill_zebra = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    
+    thin_border = Border(
+        left=Side(style="thin", color="CBD5DC"),
+        right=Side(style="thin", color="CBD5DC"),
+        top=Side(style="thin", color="CBD5DC"),
+        bottom=Side(style="thin", color="CBD5DC")
+    )
+    
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+    right_align = Alignment(horizontal="right", vertical="center")
+    
+    # Title Block
+    ws.merge_cells("A1:K1")
+    ws["A1"] = f"BẢNG DANH SÁCH THU HỌC PHÍ - THÁNG {month:02d}/{year}"
+    ws["A1"].font = title_font
+    ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[1].height = 40
+    
+    # Table Headers
+    headers = [
+        "STT", "Mã học sinh", "Họ tên học sinh", "Lớp học", 
+        "Số buổi", "Học phí kỳ này", "Nợ cũ", "Tổng cần đóng", 
+        "Đã đóng", "Còn nợ", "Trạng thái"
+    ]
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = fill_header
+        cell.alignment = center_align
+        cell.border = thin_border
+    ws.row_dimensions[3].height = 28
+    
+    current_row = 4
+    for idx, r in enumerate(filtered_records, start=1):
+        ws.row_dimensions[current_row].height = 22
+        row_fill = fill_zebra if idx % 2 == 0 else PatternFill(fill_type=None)
+        
+        cells = [
+            ws.cell(row=current_row, column=1, value=idx),
+            ws.cell(row=current_row, column=2, value=r.student.student_code),
+            ws.cell(row=current_row, column=3, value=r.student.full_name),
+            ws.cell(row=current_row, column=4, value=", ".join(item.class_name for item in r.items)),
+            ws.cell(row=current_row, column=5, value=r.total_sessions),
+            ws.cell(row=current_row, column=6, value=r.total_amount),
+            ws.cell(row=current_row, column=7, value=r.prior_debt),
+            ws.cell(row=current_row, column=8, value=r.grand_total),
+            ws.cell(row=current_row, column=9, value=r.paid_amount),
+            ws.cell(row=current_row, column=10, value=r.remaining_debt),
+            ws.cell(row=current_row, column=11, value="Đã tất toán" if r.payment_status in ["paid", "overpaid"] else "Chưa tất toán" if r.payment_status == "unpaid" else "Mới đóng một phần")
+        ]
+        
+        for c_idx, c in enumerate(cells, start=1):
+            c.font = regular_font
+            c.border = thin_border
+            if row_fill.fill_type:
+                c.fill = row_fill
+                
+            if c_idx in [1, 2, 5, 11]:
+                c.alignment = center_align
+            elif c_idx in [3, 4]:
+                c.alignment = left_align
+            else:
+                c.alignment = right_align
+                c.number_format = "#,##0"
+                
+        current_row += 1
+        
+    col_widths = {
+        "A": 6, "B": 15, "C": 25, "D": 30, "E": 10, 
+        "F": 15, "G": 15, "H": 15, "I": 15, "J": 15, "K": 20
+    }
+    for col, w in col_widths.items():
+        ws.column_dimensions[col].width = w
+        
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+def generate_payroll_excel(db: Session, month: int, year: int, status: str | None = None) -> bytes:
+    from app.models import TeacherSalaryRecord
+    
+    stmt = select(TeacherSalaryRecord).options(
+        selectinload(TeacherSalaryRecord.teacher),
+        selectinload(TeacherSalaryRecord.items)
+    )
+    if month:
+        stmt = stmt.where(TeacherSalaryRecord.month == month)
+    if year:
+        stmt = stmt.where(TeacherSalaryRecord.year == year)
+        
+    rows = db.scalars(stmt.order_by(TeacherSalaryRecord.year.desc(), TeacherSalaryRecord.month.desc())).all()
+    
+    filtered_records = []
+    for row in rows:
+        prior_unpaid_stmt = (
+            select(func.coalesce(func.sum(TeacherSalaryRecord.total_amount - TeacherSalaryRecord.paid_amount), 0))
+            .where(
+                TeacherSalaryRecord.teacher_id == row.teacher_id,
+                (TeacherSalaryRecord.year < row.year) | ((TeacherSalaryRecord.year == row.year) & (TeacherSalaryRecord.month < row.month))
+            )
+        )
+        row.prior_unpaid = db.scalar(prior_unpaid_stmt) or 0
+        row.grand_total = row.total_amount + row.prior_unpaid
+        row.remaining = max(0, row.total_amount - row.paid_amount)
+        
+        stat = row.payment_status or "unpaid"
+        if status == "da_chi" and stat not in ["paid", "overpaid"]:
+            continue
+        if status == "chua_chi" and stat in ["paid", "overpaid"]:
+            continue
+            
+        filtered_records.append(row)
+        
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Lương GV T{month:02d}-{year}"
+    ws.views.sheetView[0].showGridLines = True
+    
+    font_family = "Segoe UI"
+    title_font = Font(name=font_family, size=16, bold=True, color="0F2A33")
+    header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
+    bold_font = Font(name=font_family, size=11, bold=True, color="10202B")
+    regular_font = Font(name=font_family, size=11, color="10202B")
+    
+    fill_header = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid")
+    fill_zebra = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    
+    thin_border = Border(
+        left=Side(style="thin", color="CBD5DC"),
+        right=Side(style="thin", color="CBD5DC"),
+        top=Side(style="thin", color="CBD5DC"),
+        bottom=Side(style="thin", color="CBD5DC")
+    )
+    
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+    right_align = Alignment(horizontal="right", vertical="center")
+    
+    # Title Block
+    ws.merge_cells("A1:J1")
+    ws["A1"] = f"BẢNG THANH TOÁN LƯƠNG GIÁO VIÊN - THÁNG {month:02d}/{year}"
+    ws["A1"].font = title_font
+    ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[1].height = 40
+    
+    # Table Headers
+    headers = [
+        "STT", "Họ tên giáo viên", "Lớp dạy", "Tổng số buổi dạy",
+        "Lương kỳ này", "Nợ lương cũ", "Tổng cần chi", 
+        "Đã chi", "Còn nợ lương", "Trạng thái"
+    ]
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = fill_header
+        cell.alignment = center_align
+        cell.border = thin_border
+    ws.row_dimensions[3].height = 28
+    
+    current_row = 4
+    for idx, r in enumerate(filtered_records, start=1):
+        ws.row_dimensions[current_row].height = 22
+        row_fill = fill_zebra if idx % 2 == 0 else PatternFill(fill_type=None)
+        
+        total_sessions = sum(item.sessions_count for item in r.items)
+        
+        cells = [
+            ws.cell(row=current_row, column=1, value=idx),
+            ws.cell(row=current_row, column=2, value=r.teacher.full_name),
+            ws.cell(row=current_row, column=3, value=", ".join(item.class_name for item in r.items)),
+            ws.cell(row=current_row, column=4, value=total_sessions),
+            ws.cell(row=current_row, column=5, value=r.total_amount),
+            ws.cell(row=current_row, column=6, value=r.prior_unpaid),
+            ws.cell(row=current_row, column=7, value=r.grand_total),
+            ws.cell(row=current_row, column=8, value=r.paid_amount),
+            ws.cell(row=current_row, column=9, value=r.remaining),
+            ws.cell(row=current_row, column=10, value="Đã tất toán" if r.payment_status in ["paid", "overpaid"] else "Chưa tất toán" if r.payment_status == "unpaid" else "Chi trả một phần")
+        ]
+        
+        for c_idx, c in enumerate(cells, start=1):
+            c.font = regular_font
+            c.border = thin_border
+            if row_fill.fill_type:
+                c.fill = row_fill
+                
+            if c_idx in [1, 4, 10]:
+                c.alignment = center_align
+            elif c_idx in [2, 3]:
+                c.alignment = left_align
+            else:
+                c.alignment = right_align
+                c.number_format = "#,##0"
+                
+        current_row += 1
+        
+    col_widths = {
+        "A": 6, "B": 25, "C": 30, "D": 15, "E": 15, 
+        "F": 15, "G": 15, "H": 15, "I": 15, "J": 20
+    }
+    for col, w in col_widths.items():
+        ws.column_dimensions[col].width = w
+        
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()

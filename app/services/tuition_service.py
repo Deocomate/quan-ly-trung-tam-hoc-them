@@ -29,6 +29,8 @@ class TuitionPreview:
     total_sessions: int
     total_amount: int
     items: list[TuitionItemPreview]
+    prior_debt: int = 0
+    grand_total: int = 0
 
 
 def get_period(db: Session, month: int, year: int) -> TuitionPeriod | None:
@@ -92,6 +94,19 @@ def build_tuition_preview(db: Session, month: int, year: int, class_id: int | No
         )
         preview.total_sessions += counted_sessions
         preview.total_amount += amount
+
+    for preview in grouped.values():
+        prior_debt_stmt = (
+            select(func.coalesce(func.sum(TuitionRecord.total_amount - TuitionRecord.paid_amount), 0))
+            .where(
+                TuitionRecord.student_id == preview.student_id,
+                (TuitionRecord.year < year) | ((TuitionRecord.year == year) & (TuitionRecord.month < month))
+            )
+        )
+        prior_debt = db.scalar(prior_debt_stmt) or 0
+        preview.prior_debt = prior_debt
+        preview.grand_total = preview.total_amount + prior_debt
+
     return list(grouped.values())
 
 
@@ -402,4 +417,42 @@ def check_tuition_staleness(
         "stale_count": len(details),
         "details": details,
     }
+
+
+def allocate_student_payment(db: Session, student_id: int, total_paid_amount: int, month: int, year: int) -> None:
+    """Phân bổ khoản thu học phí gộp cho học sinh.
+
+    Tự động tất toán các tháng cũ còn nợ theo thứ tự thời gian (FIFO)
+    trước khi dồn số tiền còn lại vào tháng hiện tại.
+    """
+    records = db.scalars(
+        select(TuitionRecord)
+        .where(
+            TuitionRecord.student_id == student_id,
+            (TuitionRecord.year < year) | ((TuitionRecord.year == year) & (TuitionRecord.month <= month))
+        )
+        .order_by(TuitionRecord.year.asc(), TuitionRecord.month.asc())
+    ).all()
+    
+    prior_paid = sum(r.paid_amount for r in records if r.year < year or (r.year == year and r.month < month))
+    remaining_pool = prior_paid + total_paid_amount
+    for r in records:
+        if r.year < year or (r.year == year and r.month < month):
+            allocated = min(r.total_amount, remaining_pool)
+            r.paid_amount = allocated
+            remaining_pool -= allocated
+        else:
+            r.paid_amount = remaining_pool
+            remaining_pool = 0
+            
+        if r.paid_amount > r.total_amount:
+            r.payment_status = "overpaid"
+        elif r.paid_amount == r.total_amount:
+            r.payment_status = "paid"
+        elif r.paid_amount > 0:
+            r.payment_status = "partial"
+        else:
+            r.payment_status = "unpaid"
+            
+    db.commit()
 

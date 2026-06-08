@@ -239,6 +239,8 @@ class TeacherSalaryRecord(Base):
     month: Mapped[int] = mapped_column(Integer, nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     total_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    paid_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    payment_status: Mapped[str] = mapped_column(String(20), default="unpaid", nullable=False)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     locked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))

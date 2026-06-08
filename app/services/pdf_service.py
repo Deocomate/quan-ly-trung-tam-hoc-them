@@ -196,9 +196,6 @@ def render_receipt_reportlab(record: TuitionRecord, settings: dict[str, str]) ->
         ),
         Paragraph(settings.get("receipt_intro", ""), styles["normal"]),
     ]
-    if is_recalculated:
-        time_str = record.updated_at.strftime('%H:%M %d/%m/%Y')
-        intro.append(Paragraph(f"<font color='#b45309'><b>⚠️ Học phí đã tính lại lúc {time_str} do thay đổi điểm danh.</b></font>", styles["normal"]))
 
     rows = [
         [
@@ -402,9 +399,6 @@ def render_multiple_receipts_reportlab(records: list[TuitionRecord], settings: d
             Paragraph(f"<b>Kính gửi: Phụ huynh em:</b> {record.student.full_name} &nbsp;&nbsp;&nbsp; <b>{record.student.student_code}</b>", styles["normal"]),
             Paragraph(settings.get("receipt_intro", ""), styles["normal"]),
         ]
-        if is_recalculated:
-            time_str = record.updated_at.strftime('%H:%M %d/%m/%Y')
-            intro.append(Paragraph(f"<font color='#b45309'><b>⚠️ Học phí đã tính lại lúc {time_str} do thay đổi điểm danh.</b></font>", styles["normal"]))
 
         rows = [
             [

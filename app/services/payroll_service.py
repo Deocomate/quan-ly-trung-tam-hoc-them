@@ -60,6 +60,16 @@ def build_payroll_preview(db: Session, month: int, year: int) -> list[dict]:
 
     results = []
     for teacher in teachers:
+        # Tính nợ lương cũ
+        prior_unpaid_stmt = (
+            select(func.coalesce(func.sum(TeacherSalaryRecord.total_amount - TeacherSalaryRecord.paid_amount), 0))
+            .where(
+                TeacherSalaryRecord.teacher_id == teacher.id,
+                (TeacherSalaryRecord.year < year) | ((TeacherSalaryRecord.year == year) & (TeacherSalaryRecord.month < month))
+            )
+        )
+        prior_unpaid = db.scalar(prior_unpaid_stmt) or 0
+
         record = db.scalar(
             select(TeacherSalaryRecord)
             .where(
@@ -92,6 +102,10 @@ def build_payroll_preview(db: Session, month: int, year: int) -> list[dict]:
                 "teacher_name": teacher.full_name,
                 "is_locked": True,
                 "total_salary": record.total_amount,
+                "paid_amount": record.paid_amount,
+                "payment_status": record.payment_status,
+                "prior_unpaid": prior_unpaid,
+                "grand_total": record.total_amount + prior_unpaid,
                 "classes": class_items
             })
         else:
@@ -225,6 +239,10 @@ def build_payroll_preview(db: Session, month: int, year: int) -> list[dict]:
                 "teacher_name": teacher.full_name,
                 "is_locked": False,
                 "total_salary": total_salary,
+                "paid_amount": 0,
+                "payment_status": "unpaid",
+                "prior_unpaid": prior_unpaid,
+                "grand_total": total_salary + prior_unpaid,
                 "classes": class_items
             })
     return results
@@ -293,3 +311,42 @@ def lock_payroll_period(db: Session, month: int, year: int, user_id: int) -> lis
 
     db.commit()
     return records
+
+
+def allocate_teacher_payment(db: Session, teacher_id: int, total_paid_amount: int, month: int, year: int) -> None:
+    """Phân bổ khoản chi trả lương gộp cho giáo viên.
+
+    Tự động tất toán các tháng cũ còn nợ theo thứ tự thời gian (FIFO)
+    trước khi dồn số tiền còn lại vào tháng hiện tại.
+    """
+    from app.models import TeacherSalaryRecord
+    records = db.scalars(
+        select(TeacherSalaryRecord)
+        .where(
+            TeacherSalaryRecord.teacher_id == teacher_id,
+            (TeacherSalaryRecord.year < year) | ((TeacherSalaryRecord.year == year) & (TeacherSalaryRecord.month <= month))
+        )
+        .order_by(TeacherSalaryRecord.year.asc(), TeacherSalaryRecord.month.asc())
+    ).all()
+    
+    prior_paid = sum(r.paid_amount for r in records if r.year < year or (r.year == year and r.month < month))
+    remaining_pool = prior_paid + total_paid_amount
+    for r in records:
+        if r.year < year or (r.year == year and r.month < month):
+            allocated = min(r.total_amount, remaining_pool)
+            r.paid_amount = allocated
+            remaining_pool -= allocated
+        else:
+            r.paid_amount = remaining_pool
+            remaining_pool = 0
+            
+        if r.paid_amount > r.total_amount:
+            r.payment_status = "overpaid"
+        elif r.paid_amount == r.total_amount:
+            r.payment_status = "paid"
+        elif r.paid_amount > 0:
+            r.payment_status = "partial"
+        else:
+            r.payment_status = "unpaid"
+            
+    db.commit()
