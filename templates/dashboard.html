@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-<!-- Bộ lọc Tháng/Năm & Nút xuất báo cáo doanh thu -->
 <div class="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
   <div class="flex flex-wrap items-center gap-4">
-    <div class="w-32">
+    <div class="w-36">
+      <label class="label text-slate-700 font-semibold mb-1">Loại báo cáo</label>
+      <select id="periodType" class="field rounded-lg border-slate-200">
+        <option value="month">Theo Tháng</option>
+        <option value="quarter">Theo Quý</option>
+        <option value="year">Theo Năm</option>
+      </select>
+    </div>
+    <div id="monthContainer" class="w-32">
       <label class="label text-slate-700 font-semibold mb-1">Chọn tháng</label>
       <select id="month" class="field rounded-lg border-slate-200">
         <option value="1">Tháng 1</option>
@@ -18,6 +25,15 @@
         <option value="10">Tháng 10</option>
         <option value="11">Tháng 11</option>
         <option value="12">Tháng 12</option>
+      </select>
+    </div>
+    <div id="quarterContainer" class="w-32 hidden">
+      <label class="label text-slate-700 font-semibold mb-1">Chọn quý</label>
+      <select id="quarter" class="field rounded-lg border-slate-200">
+        <option value="1">Quý 1 (T1-T3)</option>
+        <option value="2">Quý 2 (T4-T6)</option>
+        <option value="3">Quý 3 (T7-T9)</option>
+        <option value="4">Quý 4 (T10-T12)</option>
       </select>
     </div>
     <div class="w-32">
@@ -143,19 +159,25 @@
   }
 
   async function loadDashboard() {
-    const month = Number(document.getElementById("month").value);
+    const periodType = document.getElementById("periodType").value;
     const year = Number(document.getElementById("year").value);
+    let periodValue = 1;
+    if (periodType === "month") {
+      periodValue = Number(document.getElementById("month").value);
+    } else if (periodType === "quarter") {
+      periodValue = Number(document.getElementById("quarter").value);
+    }
     
     // Tải thông tin thống kê tổng quan
-    const summary = await api(`/api/dashboard/summary?month=${month}&year=${year}`);
+    const summary = await api(`/api/dashboard/summary?year=${year}&period_type=${periodType}&period_value=${periodValue}`);
     setText("mStudents", summary.students);
     setText("mClasses", summary.classes);
     setText("mSessions", summary.sessions);
     setText("mRevenue", formatMoney(summary.revenue));
     
     // Cập nhật link tải báo cáo
-    document.getElementById("exportExcelBtn").href = `/api/dashboard/export-excel?month=${month}&year=${year}`;
-    document.getElementById("exportPdfBtn").href = `/api/dashboard/export-pdf?month=${month}&year=${year}`;
+    document.getElementById("exportExcelBtn").href = `/api/dashboard/export-excel?year=${year}&period_type=${periodType}&period_value=${periodValue}`;
+    document.getElementById("exportPdfBtn").href = `/api/dashboard/export-pdf?year=${year}&period_type=${periodType}&period_value=${periodValue}`;
     
     // Tải thông tin biểu đồ doanh thu năm (Lưu vào biến global)
     yearlyRevenueData = await api(`/api/dashboard/revenue?year=${year}`);
@@ -165,7 +187,23 @@
   }
 
   // Gắn sự kiện lắng nghe thay đổi
+  document.getElementById("periodType").addEventListener("change", function() {
+    const type = this.value;
+    if (type === "month") {
+      document.getElementById("monthContainer").classList.remove("hidden");
+      document.getElementById("quarterContainer").classList.add("hidden");
+    } else if (type === "quarter") {
+      document.getElementById("monthContainer").classList.add("hidden");
+      document.getElementById("quarterContainer").classList.remove("hidden");
+    } else {
+      document.getElementById("monthContainer").classList.add("hidden");
+      document.getElementById("quarterContainer").classList.add("hidden");
+    }
+    loadDashboard();
+  });
+
   document.getElementById("month").addEventListener("change", loadDashboard);
+  document.getElementById("quarter").addEventListener("change", loadDashboard);
   document.getElementById("year").addEventListener("change", loadDashboard);
   
   // Khi đổi khoảng thời gian biểu đồ, KHÔNG cần gọi API, chỉ cần vẽ lại chart

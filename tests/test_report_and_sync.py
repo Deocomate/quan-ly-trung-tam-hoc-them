@@ -167,3 +167,38 @@ def test_enrollment_update_and_sync_flow() -> None:
         pdf_resp = client.get("/api/dashboard/export-pdf?month=11&year=2099")
         assert pdf_resp.status_code == 200
         assert pdf_resp.headers["content-type"] == "application/pdf"
+
+
+def test_dashboard_quarter_and_year_reports() -> None:
+    with TestClient(app) as client:
+        login(client)
+
+        # Verify summary stats for Quarter 4 (T10-T12)
+        summary_q4 = client.get("/api/dashboard/summary?year=2099&period_type=quarter&period_value=4").json()
+        assert "revenue" in summary_q4
+        assert "sessions" in summary_q4
+        assert "students" in summary_q4
+
+        # Verify summary stats for Year
+        summary_year = client.get("/api/dashboard/summary?year=2099&period_type=year").json()
+        assert "revenue" in summary_year
+
+        # Export Excel for Quarter 4
+        excel_q4 = client.get("/api/dashboard/export-excel?year=2099&period_type=quarter&period_value=4")
+        assert excel_q4.status_code == 200
+        assert excel_q4.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        # Export PDF for Quarter 4
+        pdf_q4 = client.get("/api/dashboard/export-pdf?year=2099&period_type=quarter&period_value=4")
+        assert pdf_q4.status_code == 200
+        assert pdf_q4.headers["content-type"] == "application/pdf"
+
+        # Export Excel for Year
+        excel_year = client.get("/api/dashboard/export-excel?year=2099&period_type=year")
+        assert excel_year.status_code == 200
+        assert excel_year.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        # Export PDF for Year
+        pdf_year = client.get("/api/dashboard/export-pdf?year=2099&period_type=year")
+        assert pdf_year.status_code == 200
+        assert pdf_year.headers["content-type"] == "application/pdf"

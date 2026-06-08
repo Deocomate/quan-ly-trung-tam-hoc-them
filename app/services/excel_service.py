@@ -9,28 +9,56 @@ from openpyxl.utils import get_column_letter
 from app.models import TuitionRecord, TuitionRecordItem, Student, Class, Enrollment
 
 
-def generate_revenue_report_excel(db: Session, month: int, year: int, settings: dict[str, str]) -> bytes:
+def format_period_label(months: list[int], year: int) -> tuple[str, str]:
+    if len(months) == 1:
+        m = months[0]
+        return f"THÁNG {m:02d}/{year}", f"T{m:02d}-{year}"
+    elif len(months) == 3:
+        sorted_m = sorted(months)
+        if sorted_m == [1, 2, 3]:
+            q = 1
+        elif sorted_m == [4, 5, 6]:
+            q = 2
+        elif sorted_m == [7, 8, 9]:
+            q = 3
+        else:
+            q = 4
+        return f"QUÝ {q}/{year}", f"Quy {q}-{year}"
+    elif len(months) == 12:
+        return f"NĂM {year}", f"{year}"
+    else:
+        sorted_m = sorted(months)
+        m_range = f"{sorted_m[0]:02d}-{sorted_m[-1]:02d}"
+        return f"KỲ {m_range}/{year}", f"Ky {m_range}-{year}"
+
+
+def generate_revenue_report_excel(db: Session, month: int | list[int], year: int, settings: dict[str, str]) -> bytes:
+    if isinstance(month, int):
+        months = [month]
+    else:
+        months = month
+
     # 1. Lấy dữ liệu tổng quan
     total_students = db.scalar(
         select(func.count(distinct(TuitionRecord.student_id)))
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
     ) or 0
 
     total_classes = db.scalar(
         select(func.count(distinct(TuitionRecordItem.class_id)))
         .join(TuitionRecordItem.record)
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
     ) or 0
 
     total_sessions = db.scalar(
         select(func.coalesce(func.sum(TuitionRecordItem.sessions), 0))
         .join(TuitionRecordItem.record)
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
     ) or 0
 
     total_revenue = db.scalar(
         select(func.coalesce(func.sum(TuitionRecord.total_amount), 0))
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
     ) or 0
 
     class_rows = db.execute(
@@ -42,7 +70,7 @@ def generate_revenue_report_excel(db: Session, month: int, year: int, settings: 
             func.coalesce(func.sum(TuitionRecordItem.amount), 0).label("revenue")
         )
         .join(TuitionRecordItem.record)
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
         .group_by(TuitionRecordItem.class_id, TuitionRecordItem.class_name, TuitionRecordItem.subject)
         .order_by(TuitionRecordItem.class_name)
     ).all()
@@ -50,7 +78,8 @@ def generate_revenue_report_excel(db: Session, month: int, year: int, settings: 
     # 2. Tạo workbook và sheet
     wb = Workbook()
     ws = wb.active
-    ws.title = f"Doanh thu T{month:02d}-{year}"
+    period_title, sheet_title = format_period_label(months, year)
+    ws.title = f"Doanh thu {sheet_title}"
 
     # Bật hiển thị đường lưới
     ws.views.sheetView[0].showGridLines = True
@@ -85,7 +114,7 @@ def generate_revenue_report_excel(db: Session, month: int, year: int, settings: 
     ws["A1"] = center_name.upper()
     ws["A1"].font = Font(name=font_family, size=11, bold=True, color="0F766E")
     
-    ws["A2"] = f"BÁO CÁO DOANH THU THÁNG {month:02d}/{year}"
+    ws["A2"] = f"BÁO CÁO DOANH THU {period_title}"
     ws["A2"].font = title_font
     
     now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")

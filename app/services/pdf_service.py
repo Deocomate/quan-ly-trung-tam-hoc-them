@@ -719,7 +719,30 @@ def _qr_image(record: TuitionRecord, settings: dict[str, str], image_cls, styles
     return []
 
 
-def generate_revenue_report_pdf(db: Session, month: int, year: int, settings: dict[str, str]) -> bytes:
+def format_period_label(months: list[int], year: int) -> tuple[str, str]:
+    if len(months) == 1:
+        m = months[0]
+        return f"THÁNG {m:02d}/{year}", f"T{m:02d}-{year}"
+    elif len(months) == 3:
+        sorted_m = sorted(months)
+        if sorted_m == [1, 2, 3]:
+            q = 1
+        elif sorted_m == [4, 5, 6]:
+            q = 2
+        elif sorted_m == [7, 8, 9]:
+            q = 3
+        else:
+            q = 4
+        return f"QUÝ {q}/{year}", f"Quy {q}-{year}"
+    elif len(months) == 12:
+        return f"NĂM {year}", f"{year}"
+    else:
+        sorted_m = sorted(months)
+        m_range = f"{sorted_m[0]:02d}-{sorted_m[-1]:02d}"
+        return f"KỲ {m_range}/{year}", f"Ky {m_range}-{year}"
+
+
+def generate_revenue_report_pdf(db: Session, month: int | list[int], year: int, settings: dict[str, str]) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     from reportlab.lib.pagesizes import A4
@@ -729,27 +752,34 @@ def generate_revenue_report_pdf(db: Session, month: int, year: int, settings: di
     from sqlalchemy import func, select, distinct
     from app.models import TuitionRecord, TuitionRecordItem
 
+    if isinstance(month, int):
+        months = [month]
+    else:
+        months = month
+
+    period_title, _ = format_period_label(months, year)
+
     # Lấy dữ liệu
     total_students = db.scalar(
         select(func.count(distinct(TuitionRecord.student_id)))
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
     ) or 0
 
     total_classes = db.scalar(
         select(func.count(distinct(TuitionRecordItem.class_id)))
         .join(TuitionRecordItem.record)
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
     ) or 0
 
     total_sessions = db.scalar(
         select(func.coalesce(func.sum(TuitionRecordItem.sessions), 0))
         .join(TuitionRecordItem.record)
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
     ) or 0
 
     total_revenue = db.scalar(
         select(func.coalesce(func.sum(TuitionRecord.total_amount), 0))
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
     ) or 0
 
     class_rows = db.execute(
@@ -761,7 +791,7 @@ def generate_revenue_report_pdf(db: Session, month: int, year: int, settings: di
             func.coalesce(func.sum(TuitionRecordItem.amount), 0).label("revenue")
         )
         .join(TuitionRecordItem.record)
-        .where(TuitionRecord.month == month, TuitionRecord.year == year)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
         .group_by(TuitionRecordItem.class_id, TuitionRecordItem.class_name, TuitionRecordItem.subject)
         .order_by(TuitionRecordItem.class_name)
     ).all()
@@ -798,7 +828,7 @@ def generate_revenue_report_pdf(db: Session, month: int, year: int, settings: di
     story.append(Spacer(1, 4 * mm))
 
     # Tiêu đề báo cáo
-    story.append(Paragraph(f"BÁO CÁO DOANH THU THÁNG {month:02d}/{year}", styles["title"]))
+    story.append(Paragraph(f"BÁO CÁO DOANH THU {period_title}", styles["title"]))
     import datetime
     now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     story.append(Paragraph(f"Ngày xuất báo cáo: {now_str}", ParagraphStyle("sub", fontName=regular_font, fontSize=9, leading=12, alignment=TA_CENTER, textColor=colors.HexColor("#526672"))))
