@@ -8,11 +8,11 @@ from app.database import BASE_DIR
 from app.models import Setting, User
 
 DEFAULT_SETTINGS = {
-    "center_logo_text": "HOA TUYẾT\nEDUCATION",
-    "center_name": "HỘ KINH DOANH TRUNG TÂM GIÁO DỤC HOA TUYẾT",
+    "center_logo_text": "HH\nEDUCATION",
+    "center_name": "HỘ KINH DOANH TRUNG TÂM GIÁO DỤC HH",
     "center_address": "Số 15, ngõ 52/3 phố Quan Nhân, Trung Hoà, Cầu Giấy, Hà Nội",
     "center_hotline": "Hotline: Chị Hoa: 0982927578 ; anh Sơn: 0969651968",
-    "receipt_intro": "Hoa Tuyết Edu gửi tới Quý Phụ Huynh thông báo học phí Tháng của con như sau:",
+    "receipt_intro": "HH Edu gửi tới Quý Phụ Huynh thông báo học phí Tháng của con như sau:",
     "payment_deadline": "Quý Phụ Huynh vui lòng hoàn thành học phí cho con trong ngày 15,16,17,18 hàng tháng",
     "payment_content_template": "HP {student_code} {month:02d}{year_short}",
     "receipt_footer": "Trân trọng cảm ơn!",

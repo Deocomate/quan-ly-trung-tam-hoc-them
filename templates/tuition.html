@@ -229,6 +229,15 @@
       const total = row.total_amount || 0;
       const debt = total - paid;
       
+      let debtHtml = "";
+      if (debt > 0) {
+          debtHtml = `<span class="font-semibold text-rose-700">${formatMoney(debt)}</span>`;
+      } else if (debt < 0) {
+          debtHtml = `<span class="font-bold text-green-600">Dư: ${formatMoney(Math.abs(debt))}</span>`;
+      } else {
+          debtHtml = `<span class="font-semibold text-slate-500">0</span>`;
+      }
+
       // Status badge
       let statusBadge = "";
       if (!isLocked) {
@@ -237,11 +246,25 @@
         const status = row.payment_status || "unpaid";
         if (status === "paid") {
           statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">Đã thu đủ</span>`;
+        } else if (status === "overpaid") {
+          statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">Thu dư tiền</span>`;
         } else if (status === "partial") {
           statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Thu một phần</span>`;
         } else {
           statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">Chưa thu</span>`;
         }
+      }
+
+      // Thêm cảnh báo nếu bị tính lại SAU KHI đã đóng tiền
+      let updateNotice = "";
+      if (isLocked && row.updated_at && row.created_at) {
+          // So sánh thời gian. Nếu updated_at cách created_at quá 1 phút (để loại trừ lúc mới tạo)
+          const tUpdate = new Date(row.updated_at).getTime();
+          const tCreate = new Date(row.created_at).getTime();
+          if (tUpdate - tCreate > 60000 && paid > 0) { 
+              const timeStr = new Date(row.updated_at).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'});
+              updateNotice = `<div class="text-[10px] text-amber-600 font-semibold mt-1 bg-amber-50 p-1 rounded border border-amber-100">⚠️ Tính lại lúc ${timeStr}<br>do điểm danh đổi.</div>`;
+          }
       }
 
       // Actions: payment button (only when locked)
@@ -260,8 +283,8 @@
           <td class="font-semibold text-slate-700">${row.total_sessions} buổi</td>
           <td class="font-bold text-slate-800">${formatMoney(total)}</td>
           <td class="font-semibold text-green-700">${formatMoney(paid)}</td>
-          <td class="font-semibold text-rose-700">${formatMoney(debt)}</td>
-          <td>${statusBadge}</td>
+          <td>${debtHtml}</td>
+          <td>${statusBadge} ${updateNotice}</td>
           <td class="text-sm text-slate-600 leading-relaxed">${itemsHtml}</td>
           <td>
             <div class="flex items-center">

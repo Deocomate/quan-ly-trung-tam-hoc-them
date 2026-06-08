@@ -108,28 +108,29 @@ def lock_tuition_period(db: Session, month: int, year: int, user: User, class_id
             )
         )
         if record:
+            # Chỉ xóa chi tiết bên trong, GIỮ LẠI record vỏ
             if class_id:
-                # Nếu lọc theo lớp, chỉ xóa các chi tiết học phí của lớp đó
                 db.execute(
                     delete(TuitionRecordItem).where(
                         TuitionRecordItem.record_id == record.id,
                         TuitionRecordItem.class_id == class_id
                     )
                 )
-                db.flush()
             else:
-                # Nếu không lọc lớp, xóa toàn bộ bản ghi cũ
-                db.delete(record)
-                db.flush()
-                record = None
-
-        if not record:
+                db.execute(delete(TuitionRecordItem).where(TuitionRecordItem.record_id == record.id))
+            db.flush()
+            # Cập nhật updated_at khi tính toán lại
+            record.updated_at = now_vietnam()
+        else:
             record = TuitionRecord(
                 student_id=preview.student_id,
                 month=month,
                 year=year,
                 total_sessions=0,
                 total_amount=0,
+                paid_amount=0,
+                created_at=now_vietnam(),
+                updated_at=now_vietnam()
             )
             db.add(record)
             db.flush()
@@ -155,39 +156,46 @@ def lock_tuition_period(db: Session, month: int, year: int, user: User, class_id
             select(TuitionRecordItem).where(TuitionRecordItem.record_id == record.id)
         ).all()
         
-        # Nếu không còn chi tiết học phí nào (ví dụ bị xóa hết), có thể xóa bản ghi TuitionRecord
+        # Nếu không còn chi tiết học phí nào
         if not items_in_db:
-            db.delete(record)
-            db.flush()
+            if record.paid_amount == 0:
+                db.delete(record)
+                db.flush()
+                continue
+            else:
+                record.total_sessions = 0
+                record.total_amount = 0
         else:
             record.total_sessions = sum(it.sessions for it in items_in_db)
             record.total_amount = sum(it.amount for it in items_in_db)
             
-            # Ensure transfer_code is set
-            if not record.transfer_code:
-                from app.services.settings_service import get_settings_map
-                settings = get_settings_map(db)
-                payment_template = settings.get("payment_content_template", "HP {student_code} {month:02d}{year_short}")
-                
-                from app.services.vietqr_service import safe_format_payment_content, normalize_transfer_content
-                raw_code = safe_format_payment_content(
-                    payment_template,
-                    preview.student_name,
-                    preview.student_code,
-                    record.month,
-                    record.year
-                )
-                record.transfer_code = normalize_transfer_content(raw_code)
-                
-            # Recalculate status based on paid_amount and new total_amount
-            if record.paid_amount >= record.total_amount:
-                record.payment_status = "paid"
-            elif record.paid_amount > 0:
-                record.payment_status = "partial"
-            else:
-                record.payment_status = "unpaid"
-                
-            records.append(record)
+        # Ensure transfer_code is set
+        if not record.transfer_code:
+            from app.services.settings_service import get_settings_map
+            settings = get_settings_map(db)
+            payment_template = settings.get("payment_content_template", "HP {student_code} {month:02d}{year_short}")
+            
+            from app.services.vietqr_service import safe_format_payment_content, normalize_transfer_content
+            raw_code = safe_format_payment_content(
+                payment_template,
+                preview.student_name,
+                preview.student_code,
+                record.month,
+                record.year
+            )
+            record.transfer_code = normalize_transfer_content(raw_code)
+            
+        # Recalculate status based on paid_amount and new total_amount
+        if record.paid_amount > record.total_amount:
+            record.payment_status = "overpaid"
+        elif record.paid_amount == record.total_amount:
+            record.payment_status = "paid"
+        elif record.paid_amount > 0:
+            record.payment_status = "partial"
+        else:
+            record.payment_status = "unpaid"
+            
+        records.append(record)
 
     period = get_period(db, month, year)
     if not period:
@@ -335,14 +343,17 @@ def sync_attendance_to_tuition(db: Session, student_id: int, class_id: int, att_
     record.total_sessions = sum(it.sessions for it in all_items)
     record.total_amount = sum(it.amount for it in all_items)
 
-    # 8. Cập nhật trạng thái thanh toán
-    if record.paid_amount >= record.total_amount:
+    # 8. Cập nhật trạng thái thanh toán và updated_at
+    if record.paid_amount > record.total_amount:
+        record.payment_status = "overpaid"
+    elif record.paid_amount == record.total_amount:
         record.payment_status = "paid"
     elif record.paid_amount > 0:
         record.payment_status = "partial"
     else:
         record.payment_status = "unpaid"
 
+    record.updated_at = now_vietnam()
     db.flush()
 
 

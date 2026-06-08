@@ -100,7 +100,7 @@ def _reset_sample_data(db: Session) -> None:
         foreign_class_refs = (enrollment_student_ids | attendance_student_ids) - sample_student_ids
         if foreign_class_refs:
             raise UnsafeSeedError(
-                "Các lớp mẫu 6A/6B/7A/8A đang có dữ liệu ngoài bộ mẫu. "
+                "Các lớp mẫu đang có dữ liệu ngoài bộ mẫu. "
                 "Seeder dừng để tránh xóa nhầm phân lớp hoặc điểm danh thật."
             )
 
@@ -283,7 +283,7 @@ def _create_students_and_enrollments(db: Session, class_by_name: dict[str, Class
 
 
 def _create_attendance(db: Session, student_by_code: dict[str, Student], class_by_name: dict[str, Class]) -> int:
-    class_6a = class_by_name["6A"]
+    target_class = class_by_name["Toán 6 Nâng cao"]
     count = 0
     for student_code, statuses in SAMPLE_ATTENDANCE.items():
         student = student_by_code[student_code]
@@ -291,7 +291,7 @@ def _create_attendance(db: Session, student_by_code: dict[str, Student], class_b
             db.add(
                 Attendance(
                     student_id=student.id,
-                    class_id=class_6a.id,
+                    class_id=target_class.id,
                     date=date(SAMPLE_YEAR, SAMPLE_MONTH, day),
                     status=status,
                 )

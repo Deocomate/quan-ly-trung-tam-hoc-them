@@ -192,6 +192,9 @@ class TuitionRecord(Base):
     total_sessions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_vietnam, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_vietnam, onupdate=now_vietnam, nullable=False
+    )
     transfer_code: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
     paid_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     payment_status: Mapped[str] = mapped_column(String(20), default="unpaid", nullable=False)

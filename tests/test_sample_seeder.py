@@ -64,8 +64,8 @@ def test_sample_seeder_locks_attendance_month() -> None:
         login = client.post("/api/auth/login", json={"username": "admin", "password": "123456"})
         assert login.status_code == 200
         with SessionLocal() as db:
-            student = db.scalar(select(Student).where(Student.student_code == "HS001"))
-            class_ = db.scalar(select(Class).where(Class.name == "6A"))
+            student = db.scalar(select(Student).where(Student.student_code == "2026HS001"))
+            class_ = db.scalar(select(Class).where(Class.name == "Toán 6 Nâng cao"))
         allowed = client.post(
             "/api/attendance/bulk",
             json={

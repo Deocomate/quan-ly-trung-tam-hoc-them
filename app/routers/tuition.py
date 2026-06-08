@@ -71,6 +71,8 @@ def records(month: int | None = None, year: int | None = None, class_id: int | N
             "transfer_code": row.transfer_code,
             "paid_amount": row.paid_amount,
             "payment_status": row.payment_status,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
             "items": [
                 {
                     "id": item.id,
@@ -200,7 +202,9 @@ def update_tuition_payment(record_id: int, payload: TuitionPaymentUpdate, db: Se
         
     record.paid_amount = payload.paid_amount
     
-    if record.paid_amount >= record.total_amount:
+    if record.paid_amount > record.total_amount:
+        record.payment_status = "overpaid"
+    elif record.paid_amount == record.total_amount:
         record.payment_status = "paid"
     elif record.paid_amount > 0:
         record.payment_status = "partial"

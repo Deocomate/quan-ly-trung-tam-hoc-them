@@ -197,8 +197,8 @@ def test_admin_seed_and_tuition_flow() -> None:
         records_resp = client.get("/api/tuition/records?month=12&year=2099")
         assert records_resp.status_code == 200
         records = records_resp.json()
-        assert len(records) == 1
-        item_id = records[0]["items"][0]["id"]
+        record = next(r for r in records if r["student_code"] == "TEST209912")
+        item_id = record["items"][0]["id"]
         
         update_notes = client.put(
             f"/api/tuition/items/{item_id}/notes",
@@ -208,4 +208,5 @@ def test_admin_seed_and_tuition_flow() -> None:
         assert update_notes.json()["notes"] == "Đã thu tiền muộn"
         
         records_updated = client.get("/api/tuition/records?month=12&year=2099").json()
-        assert records_updated[0]["items"][0]["notes"] == "Đã thu tiền muộn"
+        record_updated = next(r for r in records_updated if r["student_code"] == "TEST209912")
+        assert record_updated["items"][0]["notes"] == "Đã thu tiền muộn"

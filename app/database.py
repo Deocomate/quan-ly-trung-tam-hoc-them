@@ -92,6 +92,9 @@ def init_db() -> None:
             conn.execute(text("ALTER TABLE tuition_records ADD COLUMN paid_amount INTEGER DEFAULT 0 NOT NULL"))
         if "payment_status" not in tr_columns:
             conn.execute(text("ALTER TABLE tuition_records ADD COLUMN payment_status VARCHAR(20) DEFAULT 'unpaid' NOT NULL"))
+        if "updated_at" not in tr_columns:
+            conn.execute(text("ALTER TABLE tuition_records ADD COLUMN updated_at DATETIME"))
+            conn.execute(text("UPDATE tuition_records SET updated_at = created_at WHERE updated_at IS NULL"))
 
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_tuition_record_transfer_code ON tuition_records(transfer_code)"))
 

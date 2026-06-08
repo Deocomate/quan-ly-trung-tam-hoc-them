@@ -164,6 +164,11 @@
                 </div>
                 <div style="margin-top: 4px">{{ settings.receipt_intro }}</div>
               </div>
+              {% if record.is_recalculated %}
+              <div style="margin: 4px 8px; color: #b45309; background-color: #fef3c7; border: 1px solid #fde68a; padding: 6px; border-radius: 4px; font-weight: bold; font-size: 13px; text-align: left;">
+                ⚠️ Học phí đã tính lại lúc {{ record.recalculated_at_str }} do thay đổi điểm danh.
+              </div>
+              {% endif %}
               <table>
                 <thead>
                   <tr>
@@ -196,11 +201,26 @@
                     <td></td>
                   </tr>
                   {% endif %}
+                  {% set debt = record.total_amount - (record.paid_amount or 0) %}
+                  {% if debt > 0 %}
                   <tr>
-                    <td colspan="3"><strong>SỐ TIỀN PHẢI NỘP (VNĐ)</strong></td>
-                    <td><strong>{{ (record.total_amount - (record.paid_amount or 0)) | currency }}</strong></td>
+                    <td colspan="3"><strong>SỐ TIỀN CÒN PHẢI NỘP (VNĐ)</strong></td>
+                    <td><strong>{{ debt | currency }}</strong></td>
                     <td></td>
                   </tr>
+                  {% elif debt < 0 %}
+                  <tr>
+                    <td colspan="3"><strong style="color: #16a34a;">SỐ TIỀN ĐÓNG DƯ KỲ NÀY (VNĐ)</strong></td>
+                    <td><strong style="color: #16a34a;">{{ (debt | abs) | currency }}</strong></td>
+                    <td style="font-size: 13px; color: #555;">Sẽ trừ vào tháng sau</td>
+                  </tr>
+                  {% else %}
+                  <tr>
+                    <td colspan="3"><strong>SỐ TIỀN PHẢI NỘP (VNĐ)</strong></td>
+                    <td><strong>0</strong></td>
+                    <td></td>
+                  </tr>
+                  {% endif %}
                 </tbody>
               </table>
               <div class="payment-note">

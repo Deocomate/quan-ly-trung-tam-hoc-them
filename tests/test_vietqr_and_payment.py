@@ -130,8 +130,7 @@ def test_vietqr_and_payment_flow():
         records_resp = client.get("/api/tuition/records?month=11&year=2099")
         assert records_resp.status_code == 200
         records = records_resp.json()
-        assert len(records) == 1
-        record = records[0]
+        record = next(r for r in records if r["student_code"] == "QRTEST2099")
         
         assert record["transfer_code"] == "HP QRTEST2099 1199"
         assert record["paid_amount"] == 0
@@ -152,7 +151,8 @@ def test_vietqr_and_payment_flow():
         assert data["debt"] == 100000
 
         # Verify through GET
-        record_check = client.get("/api/tuition/records?month=11&year=2099").json()[0]
+        records = client.get("/api/tuition/records?month=11&year=2099").json()
+        record_check = next(r for r in records if r["student_code"] == "QRTEST2099")
         assert record_check["paid_amount"] == 50000
         assert record_check["payment_status"] == "partial"
 
@@ -167,7 +167,8 @@ def test_vietqr_and_payment_flow():
         assert data["debt"] == 0
 
         # Verify through GET
-        record_check = client.get("/api/tuition/records?month=11&year=2099").json()[0]
+        records = client.get("/api/tuition/records?month=11&year=2099").json()
+        record_check = next(r for r in records if r["student_code"] == "QRTEST2099")
         assert record_check["paid_amount"] == 150000
         assert record_check["payment_status"] == "paid"
 
@@ -192,3 +193,110 @@ def test_vietqr_and_payment_flow():
         pdf_partial = client.get(f"/api/tuition/records/{record_id}/pdf")
         assert pdf_partial.status_code == 200
         assert len(pdf_partial.content) > 0
+
+
+def test_tuition_recalculation_and_overpayment():
+    with TestClient(app) as client:
+        login(client)
+
+        # 1. Setup class and student
+        klass = client.post(
+            "/api/classes",
+            json={"name": "Lớp Recalculate Test", "subject": "HÓA HỌC", "default_fee": 200000, "notes": "", "is_active": True},
+        ).json()
+        
+        student = client.post(
+            "/api/students",
+            json={
+                "student_code": "RECALC2099",
+                "full_name": "Nguyen Recalc Student",
+                "parent_phone": "0912345678",
+                "notes": "",
+                "is_active": True,
+            },
+        ).json()
+        
+        enrollment = client.post(
+            "/api/enrollments",
+            json={
+                "student_id": student["id"],
+                "class_ids": [klass["id"]],
+                "custom_fee": None,
+                "is_exempt": False,
+                "start_date": "2099-12-01",
+                "is_active": True,
+                "notes": "",
+            },
+        )
+        assert enrollment.status_code == 200
+
+        # 2. Add attendance: 2 sessions
+        client.post(
+            "/api/attendance/bulk",
+            json={
+                "class_id": klass["id"],
+                "date": "2099-12-05",
+                "items": [{"student_id": student["id"], "status": "P"}],
+            },
+        )
+        client.post(
+            "/api/attendance/bulk",
+            json={
+                "class_id": klass["id"],
+                "date": "2099-12-10",
+                "items": [{"student_id": student["id"], "status": "P"}],
+            },
+        )
+
+        # 3. Lock tuition: 2 sessions * 200,000 = 400,000 VNĐ
+        lock = client.post("/api/tuition/lock", json={"month": 12, "year": 2099, "class_id": None})
+        assert lock.status_code == 200
+
+        records = client.get("/api/tuition/records?month=12&year=2099").json()
+        student_records = [r for r in records if r["student_code"] == "RECALC2099"]
+        assert len(student_records) == 1
+        record = student_records[0]
+        assert record["total_amount"] == 400000
+        assert record["paid_amount"] == 0
+        assert record["payment_status"] == "unpaid"
+        transfer_code_first = record["transfer_code"]
+
+        # 4. Pay in full
+        record_id = record["id"]
+        pay_resp = client.put(
+            f"/api/tuition/records/{record_id}/payment",
+            json={"paid_amount": 400000}
+        )
+        assert pay_resp.status_code == 200
+        assert pay_resp.json()["payment_status"] == "paid"
+
+        # 5. Change attendance: delete 1 session (now only 1 session)
+        client.post(
+            "/api/attendance/bulk",
+            json={
+                "class_id": klass["id"],
+                "date": "2099-12-10",
+                "items": [{"student_id": student["id"], "status": "V"}],
+            },
+        )
+
+        # 6. Recalculate (re-lock) tuition
+        lock2 = client.post("/api/tuition/lock", json={"month": 12, "year": 2099, "class_id": None})
+        assert lock2.status_code == 200
+
+        # Verify that record was NOT deleted, paid_amount and transfer_code are preserved, and status becomes "overpaid"
+        records2 = client.get("/api/tuition/records?month=12&year=2099").json()
+        student_records2 = [r for r in records2 if r["student_code"] == "RECALC2099"]
+        assert len(student_records2) == 1
+        record2 = student_records2[0]
+        assert record2["id"] == record_id
+        assert record2["total_amount"] == 200000
+        assert record2["paid_amount"] == 400000
+        assert record2["payment_status"] == "overpaid"
+        assert record2["transfer_code"] == transfer_code_first
+        assert record2["updated_at"] is not None
+        
+        # Verify PDF can download for overpaid record
+        pdf_overpaid = client.get(f"/api/tuition/records/{record_id}/pdf")
+        assert pdf_overpaid.status_code == 200
+        assert len(pdf_overpaid.content) > 0

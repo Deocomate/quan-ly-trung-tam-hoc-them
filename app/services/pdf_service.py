@@ -38,7 +38,7 @@ def _build_logo_elements(settings: dict[str, str], styles: dict, mm) -> list:
             pass
             
     if not logo_elements:
-        logo_elements.append(Paragraph(_linebreaks(settings.get("center_logo_text", "HOA TUYẾT\nEDUCATION")), styles["center_bold"]))
+        logo_elements.append(Paragraph(_linebreaks(settings.get("center_logo_text", "HH\nEDUCATION")), styles["center_bold"]))
         
     return logo_elements
 
@@ -74,13 +74,20 @@ def render_receipt_html(records: list[TuitionRecord] | TuitionRecord, settings: 
     else:
         records_list = records
 
-    # Populate qr_src for each record using VietQR config from settings
+    # Populate qr_src and check recalculation for each record
     from app.services.vietqr_service import generate_vietqr_url
     bank_id = settings.get("vietqr_bank_id", "").strip()
     account_no = settings.get("vietqr_account_no", "").strip()
     account_name = settings.get("vietqr_account_name", "").strip()
 
     for rec in records_list:
+        # Check recalculation
+        rec.is_recalculated = False
+        if getattr(rec, "updated_at", None) and getattr(rec, "created_at", None) and getattr(rec, "paid_amount", 0) > 0:
+            if (rec.updated_at - rec.created_at).total_seconds() > 60:
+                rec.is_recalculated = True
+                rec.recalculated_at_str = rec.updated_at.strftime('%H:%M %d/%m/%Y')
+
         if bank_id and account_no:
             amount = rec.total_amount - (rec.paid_amount or 0)
             t_code = rec.transfer_code
@@ -176,6 +183,12 @@ def render_receipt_reportlab(record: TuitionRecord, settings: dict[str, str]) ->
     title = Table([[Paragraph(f"THÔNG BÁO HỌC PHÍ THÁNG {record.month}", styles["title"])]], colWidths=[270 * mm])
     title.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 1, colors.black), ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6)]))
 
+    # Check if recalculated
+    is_recalculated = False
+    if getattr(record, "updated_at", None) and getattr(record, "created_at", None) and getattr(record, "paid_amount", 0) > 0:
+        if (record.updated_at - record.created_at).total_seconds() > 60:
+            is_recalculated = True
+
     intro = [
         Paragraph(
             f"<b>Kính gửi: Phụ huynh em:</b> {record.student.full_name} &nbsp;&nbsp;&nbsp; <b>{record.student.student_code}</b>",
@@ -183,6 +196,9 @@ def render_receipt_reportlab(record: TuitionRecord, settings: dict[str, str]) ->
         ),
         Paragraph(settings.get("receipt_intro", ""), styles["normal"]),
     ]
+    if is_recalculated:
+        time_str = record.updated_at.strftime('%H:%M %d/%m/%Y')
+        intro.append(Paragraph(f"<font color='#b45309'><b>⚠️ Học phí đã tính lại lúc {time_str} do thay đổi điểm danh.</b></font>", styles["normal"]))
 
     rows = [
         [
@@ -222,15 +238,38 @@ def render_receipt_reportlab(record: TuitionRecord, settings: dict[str, str]) ->
                 "",
             ]
         )
-    rows.append(
-        [
-            Paragraph("SỐ TIỀN PHẢI NỘP (VNĐ)", styles["center_bold"]),
-            "",
-            "",
-            Paragraph(format_currency(record.total_amount - (record.paid_amount or 0)), styles["center_bold"]),
-            "",
-        ]
-    )
+    
+    debt = record.total_amount - (record.paid_amount or 0)
+    if debt > 0:
+        rows.append(
+            [
+                Paragraph("SỐ TIỀN CÒN PHẢI NỘP (VNĐ)", styles["center_bold"]),
+                "",
+                "",
+                Paragraph(format_currency(debt), styles["center_bold"]),
+                "",
+            ]
+        )
+    elif debt < 0:
+        rows.append(
+            [
+                Paragraph("<font color='#16a34a'><b>SỐ TIỀN ĐÓNG DƯ KỲ NÀY (VNĐ)</b></font>", styles["center_bold"]),
+                "",
+                "",
+                Paragraph(f"<font color='#16a34a'><b>{format_currency(abs(debt))}</b></font>", styles["center_bold"]),
+                Paragraph("<font color='#555555'>Sẽ trừ vào tháng sau</font>", styles["center_normal"]),
+            ]
+        )
+    else:
+        rows.append(
+            [
+                Paragraph("SỐ TIỀN PHẢI NỘP (VNĐ)", styles["center_bold"]),
+                "",
+                "",
+                Paragraph("0", styles["center_bold"]),
+                "",
+            ]
+        )
 
     detail_table = Table(rows, colWidths=[44 * mm, 24 * mm, 34 * mm, 34 * mm, 34 * mm], repeatRows=1)
     
@@ -243,7 +282,7 @@ def render_receipt_reportlab(record: TuitionRecord, settings: dict[str, str]) ->
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]
-    num_bottom_rows = 3 if (record.paid_amount and record.paid_amount > 0) else 2
+    num_bottom_rows = len(rows) - 1 - len(record.items)
     items_end_idx = -(num_bottom_rows + 1)
     t_style.append(("ALIGN", (0, 1), (0, items_end_idx), "LEFT"))
     for r_idx in range(-num_bottom_rows, 0):
@@ -353,10 +392,19 @@ def render_multiple_receipts_reportlab(records: list[TuitionRecord], settings: d
         title = Table([[Paragraph(f"THÔNG BÁO HỌC PHÍ THÁNG {record.month}", styles["title"])]], colWidths=[270 * mm])
         title.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 1, colors.black), ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6)]))
 
+        # Check if recalculated
+        is_recalculated = False
+        if getattr(record, "updated_at", None) and getattr(record, "created_at", None) and getattr(record, "paid_amount", 0) > 0:
+            if (record.updated_at - record.created_at).total_seconds() > 60:
+                is_recalculated = True
+
         intro = [
             Paragraph(f"<b>Kính gửi: Phụ huynh em:</b> {record.student.full_name} &nbsp;&nbsp;&nbsp; <b>{record.student.student_code}</b>", styles["normal"]),
             Paragraph(settings.get("receipt_intro", ""), styles["normal"]),
         ]
+        if is_recalculated:
+            time_str = record.updated_at.strftime('%H:%M %d/%m/%Y')
+            intro.append(Paragraph(f"<font color='#b45309'><b>⚠️ Học phí đã tính lại lúc {time_str} do thay đổi điểm danh.</b></font>", styles["normal"]))
 
         rows = [
             [
@@ -382,9 +430,26 @@ def render_multiple_receipts_reportlab(records: list[TuitionRecord], settings: d
             rows.append(
                 [Paragraph("Đã thanh toán (VNĐ)", styles["center_bold"]), "", "", Paragraph(f"- {format_currency(record.paid_amount)}", styles["center_bold"]), ""]
             )
-        rows.append(
-            [Paragraph("SỐ TIỀN PHẢI NỘP (VNĐ)", styles["center_bold"]), "", "", Paragraph(format_currency(record.total_amount - (record.paid_amount or 0)), styles["center_bold"]), ""]
-        )
+        
+        debt = record.total_amount - (record.paid_amount or 0)
+        if debt > 0:
+            rows.append(
+                [Paragraph("SỐ TIỀN CÒN PHẢI NỘP (VNĐ)", styles["center_bold"]), "", "", Paragraph(format_currency(debt), styles["center_bold"]), ""]
+            )
+        elif debt < 0:
+            rows.append(
+                [
+                    Paragraph("<font color='#16a34a'><b>SỐ TIỀN ĐÓNG DƯ KỲ NÀY (VNĐ)</b></font>", styles["center_bold"]),
+                    "",
+                    "",
+                    Paragraph(f"<font color='#16a34a'><b>{format_currency(abs(debt))}</b></font>", styles["center_bold"]),
+                    Paragraph("<font color='#555555'>Sẽ trừ vào tháng sau</font>", styles["center_normal"]),
+                ]
+            )
+        else:
+            rows.append(
+                [Paragraph("SỐ TIỀN PHẢI NỘP (VNĐ)", styles["center_bold"]), "", "", Paragraph("0", styles["center_bold"]), ""]
+            )
 
         detail_table = Table(rows, colWidths=[44 * mm, 24 * mm, 34 * mm, 34 * mm, 34 * mm])
         
@@ -397,7 +462,7 @@ def render_multiple_receipts_reportlab(records: list[TuitionRecord], settings: d
             ("TOPPADDING", (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]
-        num_bottom_rows = 3 if (record.paid_amount and record.paid_amount > 0) else 2
+        num_bottom_rows = len(rows) - 1 - len(record.items)
         items_end_idx = -(num_bottom_rows + 1)
         t_style.append(("ALIGN", (0, 1), (0, items_end_idx), "LEFT"))
         for r_idx in range(-num_bottom_rows, 0):
@@ -728,7 +793,7 @@ def generate_revenue_report_pdf(db: Session, month: int, year: int, settings: di
     story = []
 
     # Tên trung tâm ở góc trên bên trái
-    center_logo = settings.get("center_logo_text", "HOA TUYẾT EDUCATION")
+    center_logo = settings.get("center_logo_text", "HH EDUCATION")
     story.append(Paragraph(f"<b>{center_logo.upper()}</b>", ParagraphStyle("logo", fontName=bold_font, fontSize=11, leading=14, textColor=colors.HexColor("#0F766E"))))
     story.append(Spacer(1, 4 * mm))
 
@@ -918,7 +983,7 @@ def render_payroll_reportlab(record, settings: dict[str, str]) -> bytes:
             pass
             
     if not logo_elements:
-        logo_elements.append(Paragraph(_linebreaks(settings.get("center_logo_text", "HOA TUYẾT\nEDUCATION")), styles["center_bold"]))
+        logo_elements.append(Paragraph(_linebreaks(settings.get("center_logo_text", "HH\nEDUCATION")), styles["center_bold"]))
         
     header = Table(
         [
@@ -1087,7 +1152,7 @@ def render_multiple_payrolls_reportlab(records: list, settings: dict[str, str]) 
                 pass
                 
         if not logo_elements:
-            logo_elements.append(Paragraph(_linebreaks(settings.get("center_logo_text", "HOA TUYẾT\nEDUCATION")), styles["center_bold"]))
+            logo_elements.append(Paragraph(_linebreaks(settings.get("center_logo_text", "HH\nEDUCATION")), styles["center_bold"]))
             
         header = Table(
             [

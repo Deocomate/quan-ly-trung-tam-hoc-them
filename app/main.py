@@ -65,7 +65,7 @@ def create_app() -> FastAPI:
             "today": today_vietnam(),
             "logo_url": asset_url("logo.png"),
             "qr_url": asset_url("qr.png"),
-            "center_logo_text": settings.get("center_logo_text", "Hoa Tuyết\nEducation"),
+            "center_logo_text": settings.get("center_logo_text", "HH\nEducation"),
         }
 
     def page_user(request: Request, db: Session) -> User | RedirectResponse:

@@ -81,7 +81,7 @@ def generate_revenue_report_excel(db: Session, month: int, year: int, settings: 
     )
 
     # 4. Phần đầu đề (Header báo cáo)
-    center_name = settings.get("center_name", "HOA TUYẾT EDUCATION")
+    center_name = settings.get("center_name", "HH EDUCATION")
     ws["A1"] = center_name.upper()
     ws["A1"].font = Font(name=font_family, size=11, bold=True, color="0F766E")
     
