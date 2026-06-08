@@ -33,6 +33,7 @@ class Student(Base):
     student_code: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(160), nullable=False)
     parent_phone: Mapped[str | None] = mapped_column(String(40))
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_vietnam, nullable=False)

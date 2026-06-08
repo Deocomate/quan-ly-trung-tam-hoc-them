@@ -23,6 +23,7 @@
           <tr>
             <th class="font-bold text-slate-700">Mã</th>
             <th class="font-bold text-slate-700">Họ tên</th>
+            <th class="font-bold text-slate-700">Ngày sinh</th>
             <th class="font-bold text-slate-700">Phụ huynh</th>
             <th class="font-bold text-slate-700">Lớp/Môn học</th>
             <th class="font-bold text-slate-700">Thao tác</th>
@@ -88,6 +89,10 @@
         <label class="label text-slate-700 font-semibold">Số điện thoại phụ huynh</label>
         <input class="field rounded-lg border-slate-200" name="parent_phone" placeholder="Ví dụ: 0912345678" />
       </div>
+      <div>
+        <label class="label text-slate-700 font-semibold">Ngày sinh</label>
+        <input type="date" class="field rounded-lg border-slate-200" name="date_of_birth" />
+      </div>
       <div class="sm:col-span-2">
         <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 py-1">
           <input name="is_active" type="checkbox" checked class="rounded text-teal-600 focus:ring-teal-500" /> Đang hoạt động trên hệ thống
@@ -116,6 +121,13 @@
     return list.map((c) => `<span class="status-pill ${c.is_active ? "status-active" : "status-muted"}">${c.name} - ${c.subject}${c.is_exempt ? " (miễn phí)" : ""}</span>`).join(" ");
   }
 
+  function formatDate(isoStr) {
+    if (!isoStr) return "";
+    const parts = isoStr.split("-");
+    if (parts.length !== 3) return isoStr;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+
   function openStudentForm(item = null) {
     const form = document.getElementById("studentForm");
     form.reset();
@@ -123,6 +135,7 @@
     form.elements.student_code.value = item?.student_code || "";
     form.elements.full_name.value = item?.full_name || "";
     form.elements.parent_phone.value = item?.parent_phone || "";
+    form.elements.date_of_birth.value = item?.date_of_birth || "";
     form.elements.notes.value = item?.notes || "";
     form.elements.is_active.checked = item ? item.is_active : true;
     
@@ -154,6 +167,7 @@
       <tr>
         <td class="font-bold text-teal-800">${item.student_code}</td>
         <td class="font-semibold text-slate-800">${item.full_name}</td>
+        <td class="text-slate-600">${formatDate(item.date_of_birth)}</td>
         <td class="text-slate-600">${item.parent_phone || ""}</td>
         <td>${classBadges(item.classes)}</td>
         <td class="space-x-1 whitespace-nowrap">

@@ -44,26 +44,26 @@ SAMPLE_CLASSES: tuple[SampleClass, ...] = (
 )
 
 SAMPLE_STUDENTS: tuple[SampleStudent, ...] = (
-    SampleStudent("2026HS001", "Trần Nguyễn Bảo Nam", "Toán 6 Nâng cao", 150000, "0901112233", "Học sinh có năng khiếu toán"),
-    SampleStudent("2026HS002", "Lê Hoàng Diệp Anh", "Toán 6 Nâng cao", 150000, "0902223344", ""),
-    SampleStudent("2026HS003", "Vũ Hải Đăng", "Toán 6 Cơ bản", 120000, "0903334455", "Cần kèm cặp thêm"),
-    SampleStudent("2026HS004", "Phạm Trà My", "Ngữ Văn 7", 180000, "0904445566", ""),
-    SampleStudent("2026HS005", "Đinh Tuấn Kiệt", "Tiếng Anh 8 Giao tiếp", 200000, "0905556677", "Chuẩn bị thi IELTS"),
+    SampleStudent("2026HS000001", "Trần Nguyễn Bảo Nam", "Toán 6 Nâng cao", 150000, "0901112233", "Học sinh có năng khiếu toán"),
+    SampleStudent("2026HS000002", "Lê Hoàng Diệp Anh", "Toán 6 Nâng cao", 150000, "0902223344", ""),
+    SampleStudent("2026HS000003", "Vũ Hải Đăng", "Toán 6 Cơ bản", 120000, "0903334455", "Cần kèm cặp thêm"),
+    SampleStudent("2026HS000004", "Phạm Trà My", "Ngữ Văn 7", 180000, "0904445566", ""),
+    SampleStudent("2026HS000005", "Đinh Tuấn Kiệt", "Tiếng Anh 8 Giao tiếp", 200000, "0905556677", "Chuẩn bị thi IELTS"),
 )
 
 ATTENDANCE_DAYS: tuple[int, ...] = (2, 5, 9, 12, 16, 19, 23, 26)
 
 SAMPLE_ATTENDANCE: dict[str, tuple[str, ...]] = {
-    "2026HS001": ("P", "P", "V", "P", "P", "M", "P", "P"),
-    "2026HS002": ("P", "P", "P", "P", "V", "P", "P", "P"),
+    "2026HS000001": ("P", "P", "V", "P", "P", "M", "P", "P"),
+    "2026HS000002": ("P", "P", "P", "P", "V", "P", "P", "P"),
 }
 
 EXPECTED_TUITION: dict[str, int] = {
-    "2026HS001": 1050000,
-    "2026HS002": 1050000,
-    "2026HS003": 0,
-    "2026HS004": 0,
-    "2026HS005": 0,
+    "2026HS000001": 1050000,
+    "2026HS000002": 1050000,
+    "2026HS000003": 0,
+    "2026HS000004": 0,
+    "2026HS000005": 0,
 }
 
 EXPECTED_REVENUE = 2100000

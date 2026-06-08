@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session, selectinload
 
@@ -212,3 +212,72 @@ def delete_class(class_id: int, db: Session = Depends(get_db)):
     item.is_active = False
     db.commit()
     return {"message": "Đã ngưng hoạt động lớp/môn học."}
+
+
+@router.get("/{class_id}/students")
+def get_class_students(class_id: int, db: Session = Depends(get_db)):
+    cls = db.get(Class, class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học.")
+    
+    from app.models import Enrollment, Student
+    stmt = (
+        select(Student, Enrollment.custom_fee, Enrollment.is_exempt)
+        .join(Enrollment, Enrollment.student_id == Student.id)
+        .where(
+            Enrollment.class_id == class_id,
+            Enrollment.is_active == True,
+            Student.is_active == True
+        )
+    )
+    rows = db.execute(stmt).all()
+    
+    students_list = []
+    for student, custom_fee, is_exempt in rows:
+        students_list.append({
+            "id": student.id,
+            "student_code": student.student_code,
+            "full_name": student.full_name,
+            "date_of_birth": student.date_of_birth.isoformat() if student.date_of_birth else None,
+            "parent_phone": student.parent_phone,
+            "custom_fee": custom_fee,
+            "is_exempt": is_exempt,
+            "default_fee": cls.default_fee
+        })
+        
+    from app.routers.students import get_vietnamese_name_sort_key
+    students_list.sort(key=lambda x: get_vietnamese_name_sort_key(x["full_name"]))
+    
+    return students_list
+
+
+@router.get("/{class_id}/export-attendance")
+def export_class_attendance(
+    class_id: int,
+    month: int,
+    year: int,
+    session_days: str | None = None,
+    fill_attendance: bool = False,
+    db: Session = Depends(get_db)
+):
+    from app.services.excel_service import generate_class_attendance_excel
+    
+    cls = db.get(Class, class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lớp học.")
+        
+    excel_data = generate_class_attendance_excel(
+        db=db,
+        class_id=class_id,
+        month=month,
+        year=year,
+        session_days_str=session_days,
+        fill_attendance=fill_attendance
+    )
+    
+    filename = f"chuyen-can-{cls.name.replace(' ', '_')}-{month:02d}-{year}.xlsx"
+    return Response(
+        content=excel_data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

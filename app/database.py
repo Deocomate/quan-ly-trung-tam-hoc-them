@@ -98,6 +98,12 @@ def init_db() -> None:
 
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_tuition_record_transfer_code ON tuition_records(transfer_code)"))
 
+        # --- Columns on 'students' ---
+        cursor = conn.execute(text("PRAGMA table_info(students)"))
+        student_cols = [row[1] for row in cursor.fetchall()]
+        if "date_of_birth" not in student_cols:
+            conn.execute(text("ALTER TABLE students ADD COLUMN date_of_birth DATE"))
+
         # --- Data migration: classes.teacher_id → teacher_class_assignments ---
         # Tạo phân công cho các lớp có teacher_id cũ nhưng chưa có bản ghi trong bảng mới
         rows = conn.execute(

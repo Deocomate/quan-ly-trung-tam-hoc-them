@@ -253,3 +253,217 @@ def generate_revenue_report_excel(db: Session, month: int | list[int], year: int
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
+
+
+def generate_class_attendance_excel(
+    db: Session,
+    class_id: int,
+    month: int,
+    year: int,
+    session_days_str: str | None = None,
+    fill_attendance: bool = False
+) -> bytes:
+    import datetime
+    from app.models import Class, Student, Enrollment, Attendance
+    
+    cls = db.get(Class, class_id)
+    if not cls:
+        raise ValueError("Class not found")
+        
+    # 1. Lấy danh sách học sinh thuộc lớp
+    stmt = (
+        select(Student)
+        .join(Enrollment, Enrollment.student_id == Student.id)
+        .where(
+            Enrollment.class_id == class_id,
+            Enrollment.is_active == True,
+            Student.is_active == True
+        )
+    )
+    students = db.scalars(stmt).all()
+    
+    # Sắp xếp theo thứ tự A-Z Tiếng Việt
+    from app.routers.students import get_vietnamese_name_sort_key
+    sorted_students = sorted(students, key=lambda s: get_vietnamese_name_sort_key(s.full_name))
+    
+    # 2. Xử lý danh sách ngày học
+    session_dates = []
+    if session_days_str and session_days_str.strip():
+        parts = [p.strip() for p in session_days_str.split(",")]
+        for p in parts:
+            try:
+                day_val = int(p)
+                d = datetime.date(year, month, day_val)
+                session_dates.append(d)
+            except Exception:
+                continue
+    else:
+        # Tự phát hiện từ dữ liệu điểm danh thực tế
+        stmt_dates = (
+            select(distinct(Attendance.date))
+            .where(
+                Attendance.class_id == class_id,
+                func.strftime("%m", Attendance.date) == f"{month:02d}",
+                func.strftime("%Y", Attendance.date) == str(year)
+            )
+        )
+        dates_found = db.scalars(stmt_dates).all()
+        session_dates = sorted(dates_found)
+        
+    is_blank_sheet = len(session_dates) == 0
+    num_cols = 10 if is_blank_sheet else len(session_dates)
+    
+    # 3. Khởi tạo workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Chuyen Can"
+    ws.views.sheetView[0].showGridLines = True
+    
+    font_family = "Times New Roman"
+    
+    title_style = Font(name=font_family, size=16, bold=True)
+    subtitle_style = Font(name=font_family, size=11, italic=True)
+    bold_style = Font(name=font_family, size=11, bold=True)
+    regular_style = Font(name=font_family, size=11)
+    
+    border_side = Side(style="thin", color="000000")
+    thin_border = Border(left=border_side, right=border_side, top=border_side, bottom=border_side)
+    
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+    
+    # Tiêu đề đơn vị
+    ws["A1"] = "UBND PHƯỜNG THANH XUÂN"
+    ws["A1"].font = bold_style
+    ws["A2"] = "TT GIÁO DỤC HOA TUYẾT"
+    ws["A2"].font = bold_style
+    
+    # Tiêu đề chính
+    ws["A3"] = f"DANH SÁCH HỌC SINH LỚP {cls.name.upper()}"
+    ws["A3"].font = title_style
+    ws["A3"].alignment = center_align
+    
+    ws["A4"] = f"năm học {cls.school_year or '2025-2026'}"
+    ws["A4"].font = subtitle_style
+    ws["A4"].alignment = center_align
+    
+    # Merge tiêu đề
+    total_cols = 2 + num_cols + 1
+    col_letter_last = get_column_letter(total_cols)
+    ws.merge_cells(f"A3:{col_letter_last}3")
+    ws.merge_cells(f"A4:{col_letter_last}4")
+    
+    ws["A5"] = f"Tháng {month}/Q H"
+    ws["A5"].font = bold_style
+    
+    cell_mon = ws.cell(row=5, column=total_cols - 1)
+    cell_mon.value = f"Môn: {cls.subject.upper()}"
+    cell_mon.font = Font(name=font_family, size=12, bold=True)
+    cell_mon.alignment = Alignment(horizontal="right", vertical="center")
+    ws.merge_cells(start_row=5, start_column=total_cols-2, end_row=5, end_column=total_cols)
+    
+    ws.row_dimensions[3].height = 25
+    ws.row_dimensions[4].height = 18
+    ws.row_dimensions[5].height = 20
+    
+    ws.row_dimensions[6].height = 25
+    
+    ws["A6"] = "TT"
+    ws["A6"].font = bold_style
+    ws["A6"].alignment = center_align
+    ws["A6"].border = thin_border
+    
+    ws["B6"] = "Họ & tên"
+    ws["B6"].font = bold_style
+    ws["B6"].alignment = center_align
+    ws["B6"].border = thin_border
+    
+    for i in range(num_cols):
+        col_idx = 3 + i
+        cell = ws.cell(row=6, column=col_idx)
+        cell.font = bold_style
+        cell.alignment = center_align
+        cell.border = thin_border
+        if not is_blank_sheet:
+            d = session_dates[i]
+            cell.value = f"{d.day}/{d.month}"
+        else:
+            cell.value = ""
+            
+    cell_gc = ws.cell(row=6, column=total_cols)
+    cell_gc.value = "Ghi chú"
+    cell_gc.font = bold_style
+    cell_gc.alignment = center_align
+    cell_gc.border = thin_border
+    
+    current_row = 7
+    for idx, student in enumerate(sorted_students, start=1):
+        ws.row_dimensions[current_row].height = 20
+        
+        c_stt = ws.cell(row=current_row, column=1, value=idx)
+        c_stt.font = regular_style
+        c_stt.alignment = center_align
+        c_stt.border = thin_border
+        
+        c_name = ws.cell(row=current_row, column=2, value=student.full_name)
+        c_name.font = regular_style
+        c_name.alignment = left_align
+        c_name.border = thin_border
+        
+        attendance_map = {}
+        if fill_attendance and not is_blank_sheet:
+            stmt_att = (
+                select(Attendance)
+                .where(
+                    Attendance.student_id == student.id,
+                    Attendance.class_id == class_id,
+                    Attendance.date.in_(session_dates)
+                )
+            )
+            att_records = db.scalars(stmt_att).all()
+            attendance_map = {r.date: r.status for r in att_records}
+            
+        present_count = 0
+        for i in range(num_cols):
+            col_idx = 3 + i
+            cell = ws.cell(row=current_row, column=col_idx)
+            cell.font = regular_style
+            cell.alignment = center_align
+            cell.border = thin_border
+            
+            if not is_blank_sheet:
+                d = session_dates[i]
+                status = attendance_map.get(d)
+                if status in ["P", "M"]:
+                    cell.value = "X"
+                    present_count += 1
+                elif status == "V":
+                    cell.value = ""
+                else:
+                    cell.value = ""
+            else:
+                cell.value = ""
+                
+        cell_gc = ws.cell(row=current_row, column=total_cols)
+        cell_gc.font = regular_style
+        cell_gc.border = thin_border
+        
+        if fill_attendance and not is_blank_sheet:
+            cell_gc.value = f"Đủ: {present_count}/{len(session_dates)}"
+            cell_gc.alignment = center_align
+        else:
+            cell_gc.value = ""
+            cell_gc.alignment = left_align
+            
+        current_row += 1
+        
+    ws.column_dimensions["A"].width = 6
+    ws.column_dimensions["B"].width = 28
+    for i in range(num_cols):
+        col_letter = get_column_letter(3 + i)
+        ws.column_dimensions[col_letter].width = 8
+    ws.column_dimensions[col_letter_last].width = 16
+    
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()

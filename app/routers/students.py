@@ -14,6 +14,36 @@ from app.timezone import today_vietnam
 router = APIRouter(prefix="/api/students", tags=["students"], dependencies=[Depends(get_current_user)])
 enrollment_router = APIRouter(prefix="/api/enrollments", tags=["enrollments"], dependencies=[Depends(get_current_user)])
 
+VIETNAMESE_ALPHABET = "aàáảãạăằắẳẵặâầấẩẫậbcdđeèéẻẽẹêềếểễệghiìíỉĩịklmnoòóỏõọôồốổỗộơờớởỡợpqrstuuùúủũụưừứửữựvxyỳýỷỹỵ"
+CHAR_TO_INDEX = {char: idx for idx, char in enumerate(VIETNAMESE_ALPHABET)}
+
+def vietnamese_sort_key(s: str) -> list[int]:
+    import unicodedata
+    s = s.lower()
+    s = unicodedata.normalize("NFC", s)
+    key = []
+    for char in s:
+        if char in CHAR_TO_INDEX:
+            key.append(CHAR_TO_INDEX[char])
+        else:
+            key.append(ord(char) + len(VIETNAMESE_ALPHABET))
+    return key
+
+def get_vietnamese_name_sort_key(full_name: str) -> tuple:
+    if not full_name:
+        return ()
+    parts = full_name.strip().split()
+    if not parts:
+        return ()
+    first_name = parts[-1]
+    last_name = parts[0] if len(parts) > 1 else ""
+    middle_names = " ".join(parts[1:-1]) if len(parts) > 2 else ""
+    return (
+        vietnamese_sort_key(first_name),
+        vietnamese_sort_key(last_name),
+        vietnamese_sort_key(middle_names)
+    )
+
 
 @router.get("")
 def list_students(q: str | None = None, active: bool | None = None, db: Session = Depends(get_db)):
@@ -29,6 +59,7 @@ def list_students(q: str | None = None, active: bool | None = None, db: Session 
             "id": s.id,
             "student_code": s.student_code,
             "full_name": s.full_name,
+            "date_of_birth": s.date_of_birth.isoformat() if s.date_of_birth else None,
             "parent_phone": s.parent_phone,
             "notes": s.notes,
             "is_active": s.is_active,
@@ -63,7 +94,7 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
                 func.strftime("%Y", Student.created_at) == str(current_year)
             )
         ) or 0
-        data["student_code"] = f"{current_year}HS{count + 1}"
+        data["student_code"] = f"{current_year}HS{count + 1:06d}"
     else:
         data["student_code"] = data["student_code"].strip()
 

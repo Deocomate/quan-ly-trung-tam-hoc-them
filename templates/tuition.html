@@ -13,7 +13,7 @@
     </div>
   </div>
 
-  <div class="mt-4 grid gap-4 sm:grid-cols-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
+  <div class="mt-4 grid gap-4 sm:grid-cols-5 items-end bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
     <div>
       <label class="label text-slate-700 font-semibold mb-1">Tháng</label>
       <input id="month" class="field rounded-lg border-slate-200" type="number" min="1" max="12" />
@@ -26,6 +26,14 @@
       <label class="label text-slate-700 font-semibold mb-1">Lọc lớp/môn học</label>
       <select id="tuitionClass" class="field rounded-lg border-slate-200">
         <option value="">Tất cả</option>
+      </select>
+    </div>
+    <div>
+      <label class="label text-slate-700 font-semibold mb-1 block">Trạng thái thu</label>
+      <select id="tuitionStatus" class="field rounded-lg border-slate-200">
+        <option value="">Tất cả</option>
+        <option value="da_thu">Đã thu</option>
+        <option value="chua_thu">Chưa thu</option>
       </select>
     </div>
     <div>
@@ -145,6 +153,11 @@
       placeholder: "Gõ để tìm kiếm lớp...",
       width: '100%'
     });
+    
+    $("#tuitionStatus").select2({
+      minimumResultsForSearch: -1,
+      width: '100%'
+    });
   }
 
   function query() {
@@ -154,6 +167,9 @@
     return `month=${month}&year=${year}${classId ? `&class_id=${classId}` : ""}`;
   }
 
+  let allTuitionData = [];
+  let currentIsLocked = false;
+
   async function loadTuition() {
     if (dataTableInstance) {
       dataTableInstance.destroy();
@@ -161,29 +177,50 @@
     }
 
     const data = await api(`/api/tuition/preview?${query()}`);
-    // Giữ nút chốt luôn hoạt động
+    currentIsLocked = data.is_locked;
     document.getElementById("lockBtn").disabled = false;
     
     const notice = document.getElementById("tuitionNotice");
     notice.classList.toggle("hidden", !data.is_locked);
     notice.textContent = data.is_locked ? `Kỳ học phí đã chốt${data.locked_at ? ` lúc ${data.locked_at}` : ""}. Bạn vẫn có thể sửa điểm danh và chốt học phí lại để ghi đè dữ liệu cũ.` : "";
     
-    // Cập nhật liên kết xuất file PDF gộp thay vì file ZIP
     document.getElementById("zipLink").href = `/api/tuition/export-pdf?${query()}`;
     
     if (data.is_locked) {
-      const records = await api(`/api/tuition/records?${query()}`);
-      renderPreview(records, true);
-
-      // Kiểm tra dữ liệu lỗi thời
+      allTuitionData = await api(`/api/tuition/records?${query()}`);
       checkStaleness();
     } else {
-      // Ẩn cảnh báo khi chưa chốt
       document.getElementById("staleWarning").classList.add("hidden");
-      renderPreview(data.records, false);
+      allTuitionData = data.records;
     }
 
-    // Khởi tạo DataTables
+    filterAndRenderTuition();
+  }
+
+  function filterAndRenderTuition() {
+    if (dataTableInstance) {
+      dataTableInstance.destroy();
+      dataTableInstance = null;
+    }
+
+    const filterStatus = document.getElementById("tuitionStatus").value;
+    let filtered = allTuitionData;
+
+    if (filterStatus === "da_thu") {
+      filtered = allTuitionData.filter(r => {
+        const status = r.payment_status || "unpaid";
+        return status === "paid" || status === "overpaid";
+      });
+    } else if (filterStatus === "chua_thu") {
+      filtered = allTuitionData.filter(r => {
+        const status = r.payment_status || "unpaid";
+        if (!currentIsLocked) return true; // Nếu chưa chốt, coi như chưa thu
+        return status === "unpaid" || status === "partial";
+      });
+    }
+
+    renderPreview(filtered, currentIsLocked);
+
     dataTableInstance = $("#tuitionTable").DataTable({
       language: {
         search: "Tìm kiếm:",
@@ -195,7 +232,7 @@
           next: "Tiếp",
           previous: "Trước"
         },
-        emptyTable: "Chưa có dữ liệu học phí cho kỳ này."
+        emptyTable: "Chưa có dữ liệu học phí cho kỳ này hoặc bộ lọc không khớp."
       },
       pageLength: 10,
       retrieve: true
@@ -418,6 +455,7 @@
   }
 
   $("#tuitionClass").on("change", loadTuition);
+  $("#tuitionStatus").on("change", filterAndRenderTuition);
   Promise.all([loadTuitionClasses()]).then(loadTuition).catch((err) => toast(err.message, true));
 </script>
 {% endblock %}
