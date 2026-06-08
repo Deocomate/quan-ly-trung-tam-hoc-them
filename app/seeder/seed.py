@@ -260,6 +260,7 @@ def _create_students_and_enrollments(db: Session, class_by_name: dict[str, Class
         student = Student(
             student_code=item.student_code,
             full_name=item.full_name,
+            parent_name=f"PH em {item.full_name.split()[-1]}",
             parent_phone=item.parent_phone,
             notes=item.notes,
             is_active=True,

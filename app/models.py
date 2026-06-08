@@ -32,6 +32,7 @@ class Student(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     student_code: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    parent_name: Mapped[str | None] = mapped_column(String(160))
     parent_phone: Mapped[str | None] = mapped_column(String(40))
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text)

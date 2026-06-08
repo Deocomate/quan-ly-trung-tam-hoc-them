@@ -60,6 +60,7 @@ def list_students(q: str | None = None, active: bool | None = None, db: Session 
             "student_code": s.student_code,
             "full_name": s.full_name,
             "date_of_birth": s.date_of_birth.isoformat() if s.date_of_birth else None,
+            "parent_name": s.parent_name,
             "parent_phone": s.parent_phone,
             "notes": s.notes,
             "is_active": s.is_active,

@@ -67,6 +67,7 @@ class ClassUpdate(ClassCreate):
 class StudentCreate(BaseModel):
     student_code: str | None = Field(default=None, max_length=80)
     full_name: str = Field(min_length=1, max_length=160)
+    parent_name: str | None = None
     parent_phone: str | None = None
     date_of_birth: date | None = None
     notes: str | None = None
@@ -76,6 +77,7 @@ class StudentCreate(BaseModel):
 class StudentUpdate(BaseModel):
     student_code: str | None = Field(default=None, max_length=80)
     full_name: str = Field(min_length=1, max_length=160)
+    parent_name: str | None = None
     parent_phone: str | None = None
     date_of_birth: date | None = None
     notes: str | None = None
@@ -170,6 +172,7 @@ class StudentOut(ORMModel):
     id: int
     student_code: str
     full_name: str
+    parent_name: str | None = None
     parent_phone: str | None
     date_of_birth: date | None = None
     notes: str | None

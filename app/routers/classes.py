@@ -239,6 +239,7 @@ def get_class_students(class_id: int, db: Session = Depends(get_db)):
             "student_code": student.student_code,
             "full_name": student.full_name,
             "date_of_birth": student.date_of_birth.isoformat() if student.date_of_birth else None,
+            "parent_name": student.parent_name,
             "parent_phone": student.parent_phone,
             "custom_fee": custom_fee,
             "is_exempt": is_exempt,

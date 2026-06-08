@@ -103,6 +103,8 @@ def init_db() -> None:
         student_cols = [row[1] for row in cursor.fetchall()]
         if "date_of_birth" not in student_cols:
             conn.execute(text("ALTER TABLE students ADD COLUMN date_of_birth DATE"))
+        if "parent_name" not in student_cols:
+            conn.execute(text("ALTER TABLE students ADD COLUMN parent_name VARCHAR(160)"))
 
         # --- Data migration: classes.teacher_id → teacher_class_assignments ---
         # Tạo phân công cho các lớp có teacher_id cũ nhưng chưa có bản ghi trong bảng mới

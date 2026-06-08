@@ -86,6 +86,10 @@
         <span class="text-[11px] text-slate-400 mt-1 block">Hệ thống tự động tạo mã: {Năm}HS{Số_TT} nếu để trống.</span>
       </div>
       <div>
+        <label class="label text-slate-700 font-semibold">Họ tên phụ huynh</label>
+        <input class="field rounded-lg border-slate-200" name="parent_name" placeholder="Ví dụ: Nguyễn Văn B" />
+      </div>
+      <div>
         <label class="label text-slate-700 font-semibold">Số điện thoại phụ huynh</label>
         <input class="field rounded-lg border-slate-200" name="parent_phone" placeholder="Ví dụ: 0912345678" />
       </div>
@@ -134,6 +138,7 @@
     form.elements.id.value = item?.id || "";
     form.elements.student_code.value = item?.student_code || "";
     form.elements.full_name.value = item?.full_name || "";
+    form.elements.parent_name.value = item?.parent_name || "";
     form.elements.parent_phone.value = item?.parent_phone || "";
     form.elements.date_of_birth.value = item?.date_of_birth || "";
     form.elements.notes.value = item?.notes || "";
@@ -168,7 +173,10 @@
         <td class="font-bold text-teal-800">${item.student_code}</td>
         <td class="font-semibold text-slate-800">${item.full_name}</td>
         <td class="text-slate-600">${formatDate(item.date_of_birth)}</td>
-        <td class="text-slate-600">${item.parent_phone || ""}</td>
+        <td class="text-slate-600">
+          <div class="font-semibold text-slate-800">${item.parent_name || ""}</div>
+          <div class="text-xs text-slate-400 font-mono mt-0.5">${item.parent_phone || ""}</div>
+        </td>
         <td>${classBadges(item.classes)}</td>
         <td class="space-x-1 whitespace-nowrap">
           <button class="btn btn-muted !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick='openStudentForm(students.find(x=>x.id===${item.id}))'>Sửa</button>
