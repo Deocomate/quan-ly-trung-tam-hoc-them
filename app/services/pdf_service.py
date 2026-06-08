@@ -73,8 +73,24 @@ def render_receipt_html(records: list[TuitionRecord] | TuitionRecord, settings: 
         records_list = [records]
     else:
         records_list = records
+
+    # Populate qr_src for each record using VietQR config from settings
+    from app.services.vietqr_service import generate_vietqr_url
+    bank_id = settings.get("vietqr_bank_id", "").strip()
+    account_no = settings.get("vietqr_account_no", "").strip()
+    account_name = settings.get("vietqr_account_name", "").strip()
+
+    for rec in records_list:
+        if bank_id and account_no:
+            amount = rec.total_amount - (rec.paid_amount or 0)
+            t_code = rec.transfer_code
+            if not t_code:
+                t_code = get_payment_content(rec)
+            rec.qr_src = generate_vietqr_url(bank_id, account_no, account_name, amount, t_code)
+        else:
+            rec.qr_src = (BASE_DIR / "static" / "assets" / "qr.png").resolve().as_uri()
         
-    return template.render(records=records_list, settings=settings, qr_path=qr_path, logo_path=logo_path)
+    return template.render(records=records_list, settings=settings, logo_path=logo_path)
 
 
 def html_to_pdf(html: str) -> bytes:
@@ -187,52 +203,62 @@ def render_receipt_reportlab(record: TuitionRecord, settings: dict[str, str]) ->
                 Paragraph(item.notes or "", styles["center_normal"]),
             ]
         )
-    rows.extend(
+    rows.append(
         [
+            Paragraph("Tổng tiền (VNĐ) HỌC PHÍ", styles["center_bold"]),
+            "",
+            "",
+            Paragraph(format_currency(record.total_amount), styles["center_bold"]),
+            "",
+        ]
+    )
+    if record.paid_amount and record.paid_amount > 0:
+        rows.append(
             [
-                Paragraph("Tổng tiền (VNĐ) HỌC PHÍ", styles["center_bold"]),
+                Paragraph("Đã thanh toán (VNĐ)", styles["center_bold"]),
                 "",
                 "",
-                Paragraph(format_currency(record.total_amount), styles["center_bold"]),
+                Paragraph(f"- {format_currency(record.paid_amount)}", styles["center_bold"]),
                 "",
-            ],
-            [
-                Paragraph("SỐ TIỀN PHẢI NỘP (VNĐ)", styles["center_bold"]),
-                "",
-                "",
-                Paragraph(format_currency(record.total_amount), styles["center_bold"]),
-                "",
-            ],
+            ]
+        )
+    rows.append(
+        [
+            Paragraph("SỐ TIỀN PHẢI NỘP (VNĐ)", styles["center_bold"]),
+            "",
+            "",
+            Paragraph(format_currency(record.total_amount - (record.paid_amount or 0)), styles["center_bold"]),
+            "",
         ]
     )
 
     detail_table = Table(rows, colWidths=[44 * mm, 24 * mm, 34 * mm, 34 * mm, 34 * mm], repeatRows=1)
-    detail_table.setStyle(
-        TableStyle(
-            [
-                ("BOX", (0, 0), (-1, -1), 1, colors.black),
-                ("INNERGRID", (0, 0), (-1, -1), 1, colors.black),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-                ("ALIGN", (0, 1), (0, -3), "LEFT"),
-                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                ("ALIGN", (0, -2), (0, -1), "CENTER"),
-                ("SPAN", (0, -2), (2, -2)),
-                ("SPAN", (0, -1), (2, -1)),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
+    
+    t_style = [
+        ("BOX", (0, 0), (-1, -1), 1, colors.black),
+        ("INNERGRID", (0, 0), (-1, -1), 1, colors.black),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    num_bottom_rows = 3 if (record.paid_amount and record.paid_amount > 0) else 2
+    items_end_idx = -(num_bottom_rows + 1)
+    t_style.append(("ALIGN", (0, 1), (0, items_end_idx), "LEFT"))
+    for r_idx in range(-num_bottom_rows, 0):
+        t_style.append(("ALIGN", (0, r_idx), (0, r_idx), "CENTER"))
+        t_style.append(("SPAN", (0, r_idx), (2, r_idx)))
+    detail_table.setStyle(TableStyle(t_style))
 
     payment = [
         Paragraph(settings.get("payment_deadline", ""), styles["normal"]),
-        Paragraph(f"Nội dung chuyển khoản: <b>{payment_content}</b>", styles["normal"]),
+        Paragraph(f"Nội dung chuyển khoản: <b>{record.transfer_code or payment_content}</b>", styles["normal"]),
         Paragraph(clean_html_for_reportlab(settings.get('receipt_footer', 'Trân trọng cảm ơn!')), styles["normal"]),
     ]
 
     left = [*intro, Spacer(1, 4), detail_table, Spacer(1, 6), *payment]
-    right = [_qr_image(Image)]
+    right = _qr_image(record, settings, Image, styles)
 
     body = Table([[left, right]], colWidths=[190 * mm, 80 * mm])
     body.setStyle(
@@ -349,35 +375,45 @@ def render_multiple_receipts_reportlab(records: list[TuitionRecord], settings: d
                 Paragraph(format_currency(item.amount), styles["center_normal"]),
                 Paragraph(item.notes or "", styles["center_normal"]),
             ])
-        rows.extend([
-            [Paragraph("Tổng tiền (VNĐ) HỌC PHÍ", styles["center_bold"]), "", "", Paragraph(format_currency(record.total_amount), styles["center_bold"]), ""],
-            [Paragraph("SỐ TIỀN PHẢI NỘP (VNĐ)", styles["center_bold"]), "", "", Paragraph(format_currency(record.total_amount), styles["center_bold"]), ""],
-        ])
+        rows.append(
+            [Paragraph("Tổng tiền (VNĐ) HỌC PHÍ", styles["center_bold"]), "", "", Paragraph(format_currency(record.total_amount), styles["center_bold"]), ""]
+        )
+        if record.paid_amount and record.paid_amount > 0:
+            rows.append(
+                [Paragraph("Đã thanh toán (VNĐ)", styles["center_bold"]), "", "", Paragraph(f"- {format_currency(record.paid_amount)}", styles["center_bold"]), ""]
+            )
+        rows.append(
+            [Paragraph("SỐ TIỀN PHẢI NỘP (VNĐ)", styles["center_bold"]), "", "", Paragraph(format_currency(record.total_amount - (record.paid_amount or 0)), styles["center_bold"]), ""]
+        )
 
         detail_table = Table(rows, colWidths=[44 * mm, 24 * mm, 34 * mm, 34 * mm, 34 * mm])
-        detail_table.setStyle(TableStyle([
+        
+        t_style = [
             ("BOX", (0, 0), (-1, -1), 1, colors.black),
             ("INNERGRID", (0, 0), (-1, -1), 1, colors.black),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-            ("ALIGN", (0, 1), (0, -3), "LEFT"),
             ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-            ("ALIGN", (0, -2), (0, -1), "CENTER"),
-            ("SPAN", (0, -2), (2, -2)),
-            ("SPAN", (0, -1), (2, -1)),
             ("TOPPADDING", (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
+        ]
+        num_bottom_rows = 3 if (record.paid_amount and record.paid_amount > 0) else 2
+        items_end_idx = -(num_bottom_rows + 1)
+        t_style.append(("ALIGN", (0, 1), (0, items_end_idx), "LEFT"))
+        for r_idx in range(-num_bottom_rows, 0):
+            t_style.append(("ALIGN", (0, r_idx), (0, r_idx), "CENTER"))
+            t_style.append(("SPAN", (0, r_idx), (2, r_idx)))
+        detail_table.setStyle(TableStyle(t_style))
 
         payment_content = _payment_content(record, settings)
         payment = [
             Paragraph(settings.get("payment_deadline", ""), styles["normal"]),
-            Paragraph(f"Nội dung chuyển khoản: <b>{payment_content}</b>", styles["normal"]),
+            Paragraph(f"Nội dung chuyển khoản: <b>{record.transfer_code or payment_content}</b>", styles["normal"]),
             Paragraph(clean_html_for_reportlab(settings.get('receipt_footer', 'Trân trọng cảm ơn!')), styles["normal"]),
         ]
 
         left = [*intro, Spacer(1, 4), detail_table, Spacer(1, 4), *payment]
-        right = [_qr_image(Image)]
+        right = _qr_image(record, settings, Image, styles)
 
         body = Table([[left, right]], colWidths=[190 * mm, 80 * mm])
         body.setStyle(TableStyle([
@@ -575,13 +611,47 @@ def _payment_content(record: TuitionRecord, settings: dict[str, str]) -> str:
     )
 
 
-def _qr_image(image_cls):
-    qr_path = BASE_DIR / "static" / "assets" / "qr.png"
-    if qr_path.exists():
-        image = image_cls(str(qr_path), width=58 * 2.834645669, height=58 * 2.834645669)
+def _qr_image(record: TuitionRecord, settings: dict[str, str], image_cls, styles: dict) -> list:
+    debt = record.total_amount - (record.paid_amount or 0)
+    if debt <= 0:
+        from reportlab.platypus import Paragraph, Spacer
+        return [
+            Spacer(1, 20),
+            Paragraph("<font color='#16a34a'><b>ĐÃ THANH TOÁN ĐỦ</b></font>", styles["center_bold"]),
+            Spacer(1, 20)
+        ]
+
+    bank_id = settings.get("vietqr_bank_id", "").strip()
+    account_no = settings.get("vietqr_account_no", "").strip()
+    account_name = settings.get("vietqr_account_name", "").strip()
+    
+    fallback_path = BASE_DIR / "static" / "assets" / "qr.png"
+    
+    if bank_id and account_no:
+        from app.services.vietqr_service import generate_vietqr_url
+        t_code = record.transfer_code or _payment_content(record, settings)
+        url = generate_vietqr_url(bank_id, account_no, account_name, debt, t_code)
+        
+        import urllib.request
+        from io import BytesIO
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                img_data = BytesIO(response.read())
+                image = image_cls(img_data, width=58 * 2.834645669, height=58 * 2.834645669)
+                image.hAlign = "CENTER"
+                return [image]
+        except Exception as e:
+            print(f"Error downloading VietQR image in ReportLab: {e}")
+            
+    if fallback_path.exists():
+        image = image_cls(str(fallback_path), width=58 * 2.834645669, height=58 * 2.834645669)
         image.hAlign = "CENTER"
-        return image
-    return ""
+        return [image]
+    return []
 
 
 def generate_revenue_report_pdf(db: Session, month: int, year: int, settings: dict[str, str]) -> bytes:
@@ -904,14 +974,27 @@ def render_payroll_reportlab(record, settings: dict[str, str]) -> bytes:
     for item in record.items:
         rev_str = format_currency(item.class_revenue) if item.salary_type == "coefficient" else "-"
         type_str = "Lương cứng" if item.salary_type == "fixed" else "Doanh thu"
-        rate_str = format_currency(int(item.applied_rate)) if item.salary_type == "fixed" else str(item.applied_rate)
         
+        if item.salary_type == "fixed":
+            sess_present = getattr(item, "sessions_present", 0)
+            sess_late = getattr(item, "sessions_late", 0)
+            sess_absent = getattr(item, "sessions_absent", 0)
+            sess_p = Paragraph(f"{item.sessions_count} buổi<br/><font size='8' color='grey'>(Đủ: {sess_present}, Trễ: {sess_late}, Vắng: {sess_absent})</font>", styles["center_normal"])
+            
+            fps = getattr(item, "fixed_present_salary", 0) or getattr(item, "applied_rate", 0)
+            fls = getattr(item, "fixed_late_salary", 0) or round(getattr(item, "applied_rate", 0) * 0.7)
+            fas = getattr(item, "fixed_absent_salary", 0)
+            rate_p = Paragraph(f"<font size='8'>Đủ: {format_currency(int(fps))}<br/>Trễ: {format_currency(int(fls))}<br/>Vắng: {format_currency(int(fas))}</font>", styles["normal"])
+        else:
+            sess_p = Paragraph(str(item.sessions_count), styles["center_normal"])
+            rate_p = Paragraph(str(item.applied_rate), styles["center_normal"])
+            
         table_data.append([
             Paragraph(item.class_name, styles["normal"]),
-            Paragraph(str(item.sessions_count), styles["normal"]),
+            sess_p,
             Paragraph(rev_str, styles["normal"]),
             Paragraph(type_str, styles["normal"]),
-            Paragraph(rate_str, styles["normal"]),
+            rate_p,
             Paragraph(format_currency(item.calculated_amount), styles["normal"]),
         ])
         
@@ -1060,14 +1143,27 @@ def render_multiple_payrolls_reportlab(records: list, settings: dict[str, str]) 
         for item in record.items:
             rev_str = format_currency(item.class_revenue) if item.salary_type == "coefficient" else "-"
             type_str = "Lương cứng" if item.salary_type == "fixed" else "Doanh thu"
-            rate_str = format_currency(int(item.applied_rate)) if item.salary_type == "fixed" else str(item.applied_rate)
             
+            if item.salary_type == "fixed":
+                sess_present = getattr(item, "sessions_present", 0)
+                sess_late = getattr(item, "sessions_late", 0)
+                sess_absent = getattr(item, "sessions_absent", 0)
+                sess_p = Paragraph(f"{item.sessions_count} buổi<br/><font size='8' color='grey'>(Đủ: {sess_present}, Trễ: {sess_late}, Vắng: {sess_absent})</font>", styles["center_normal"])
+                
+                fps = getattr(item, "fixed_present_salary", 0) or getattr(item, "applied_rate", 0)
+                fls = getattr(item, "fixed_late_salary", 0) or round(getattr(item, "applied_rate", 0) * 0.7)
+                fas = getattr(item, "fixed_absent_salary", 0)
+                rate_p = Paragraph(f"<font size='8'>Đủ: {format_currency(int(fps))}<br/>Trễ: {format_currency(int(fls))}<br/>Vắng: {format_currency(int(fas))}</font>", styles["normal"])
+            else:
+                sess_p = Paragraph(str(item.sessions_count), styles["center_normal"])
+                rate_p = Paragraph(str(item.applied_rate), styles["center_normal"])
+                
             table_data.append([
                 Paragraph(item.class_name, styles["normal"]),
-                Paragraph(str(item.sessions_count), styles["normal"]),
+                sess_p,
                 Paragraph(rev_str, styles["normal"]),
                 Paragraph(type_str, styles["normal"]),
-                Paragraph(rate_str, styles["normal"]),
+                rate_p,
                 Paragraph(format_currency(item.calculated_amount), styles["normal"]),
             ])
             

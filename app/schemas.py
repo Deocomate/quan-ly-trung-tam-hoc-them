@@ -35,11 +35,16 @@ class TeacherAssignmentIn(BaseModel):
     salary_type: Literal["fixed", "coefficient"] = "fixed"
     fixed_salary_per_session: int = Field(default=450000, ge=0)
     salary_coefficient: float = Field(default=1.0, ge=0.0)
+    is_active: bool = True
+    fixed_present_salary: int | None = None
+    fixed_late_salary: int | None = None
+    fixed_absent_salary: int | None = None
 
 
 class ClassCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     subject: str = Field(min_length=1, max_length=120)
+    school_year: str | None = None
     default_fee: int = Field(ge=0)
     notes: str | None = None
     is_active: bool = True
@@ -47,9 +52,12 @@ class ClassCreate(BaseModel):
     teacher_id: int | None = None
     salary_type: Literal["fixed", "coefficient"] = "fixed"
     fixed_salary_per_session: int = Field(default=450000, ge=0)
+    fixed_present_salary: int | None = None
+    fixed_late_salary: int | None = None
+    fixed_absent_salary: int | None = None
     salary_coefficient: float = Field(default=1.0, ge=0.0)
     # New: list of teacher assignments
-    assignments: list[TeacherAssignmentIn] = []
+    assignments: list[TeacherAssignmentIn] | None = None
 
 
 class ClassUpdate(ClassCreate):
@@ -132,18 +140,26 @@ class TeacherAssignmentOut(ORMModel):
     fixed_salary_per_session: int
     salary_coefficient: float
     is_active: bool
+    fixed_present_salary: int = 450000
+    fixed_late_salary: int = 315000
+    fixed_absent_salary: int = 0
+    has_attendance: bool = False
 
 
 class ClassOut(ORMModel):
     id: int
     name: str
     subject: str
+    school_year: str | None = None
     default_fee: int
     notes: str | None
     is_active: bool
     teacher_id: int | None = None
     salary_type: str = "fixed"
     fixed_salary_per_session: int = 450000
+    fixed_present_salary: int = 450000
+    fixed_late_salary: int = 315000
+    fixed_absent_salary: int = 0
     salary_coefficient: float = 1.0
     assignments: list[TeacherAssignmentOut] = []
 

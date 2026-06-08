@@ -48,17 +48,64 @@ def init_db() -> None:
             conn.execute(text("ALTER TABLE classes ADD COLUMN fixed_salary_per_session INTEGER DEFAULT 450000 NOT NULL"))
         if "salary_coefficient" not in columns:
             conn.execute(text("ALTER TABLE classes ADD COLUMN salary_coefficient FLOAT DEFAULT 1.0 NOT NULL"))
+        if "school_year" not in columns:
+            conn.execute(text("ALTER TABLE classes ADD COLUMN school_year VARCHAR(40)"))
+        if "fixed_present_salary" not in columns:
+            conn.execute(text("ALTER TABLE classes ADD COLUMN fixed_present_salary INTEGER DEFAULT 450000 NOT NULL"))
+        if "fixed_late_salary" not in columns:
+            conn.execute(text("ALTER TABLE classes ADD COLUMN fixed_late_salary INTEGER DEFAULT 315000 NOT NULL"))
+        if "fixed_absent_salary" not in columns:
+            conn.execute(text("ALTER TABLE classes ADD COLUMN fixed_absent_salary INTEGER DEFAULT 0 NOT NULL"))
+
+        # --- Columns on 'teacher_class_assignments' ---
+        cursor = conn.execute(text("PRAGMA table_info(teacher_class_assignments)"))
+        tca_columns = [row[1] for row in cursor.fetchall()]
+        if "fixed_present_salary" not in tca_columns:
+            conn.execute(text("ALTER TABLE teacher_class_assignments ADD COLUMN fixed_present_salary INTEGER DEFAULT 450000 NOT NULL"))
+        if "fixed_late_salary" not in tca_columns:
+            conn.execute(text("ALTER TABLE teacher_class_assignments ADD COLUMN fixed_late_salary INTEGER DEFAULT 315000 NOT NULL"))
+        if "fixed_absent_salary" not in tca_columns:
+            conn.execute(text("ALTER TABLE teacher_class_assignments ADD COLUMN fixed_absent_salary INTEGER DEFAULT 0 NOT NULL"))
+
+        # --- Columns on 'teacher_salary_record_items' ---
+        cursor = conn.execute(text("PRAGMA table_info(teacher_salary_record_items)"))
+        tsri_columns = [row[1] for row in cursor.fetchall()]
+        if "sessions_present" not in tsri_columns:
+            conn.execute(text("ALTER TABLE teacher_salary_record_items ADD COLUMN sessions_present INTEGER DEFAULT 0 NOT NULL"))
+        if "sessions_late" not in tsri_columns:
+            conn.execute(text("ALTER TABLE teacher_salary_record_items ADD COLUMN sessions_late INTEGER DEFAULT 0 NOT NULL"))
+        if "sessions_absent" not in tsri_columns:
+            conn.execute(text("ALTER TABLE teacher_salary_record_items ADD COLUMN sessions_absent INTEGER DEFAULT 0 NOT NULL"))
+        if "fixed_present_salary" not in tsri_columns:
+            conn.execute(text("ALTER TABLE teacher_salary_record_items ADD COLUMN fixed_present_salary INTEGER DEFAULT 0 NOT NULL"))
+        if "fixed_late_salary" not in tsri_columns:
+            conn.execute(text("ALTER TABLE teacher_salary_record_items ADD COLUMN fixed_late_salary INTEGER DEFAULT 0 NOT NULL"))
+        if "fixed_absent_salary" not in tsri_columns:
+            conn.execute(text("ALTER TABLE teacher_salary_record_items ADD COLUMN fixed_absent_salary INTEGER DEFAULT 0 NOT NULL"))
+
+        # --- Columns on 'tuition_records' ---
+        cursor = conn.execute(text("PRAGMA table_info(tuition_records)"))
+        tr_columns = [row[1] for row in cursor.fetchall()]
+        if "transfer_code" not in tr_columns:
+            conn.execute(text("ALTER TABLE tuition_records ADD COLUMN transfer_code VARCHAR(50)"))
+        if "paid_amount" not in tr_columns:
+            conn.execute(text("ALTER TABLE tuition_records ADD COLUMN paid_amount INTEGER DEFAULT 0 NOT NULL"))
+        if "payment_status" not in tr_columns:
+            conn.execute(text("ALTER TABLE tuition_records ADD COLUMN payment_status VARCHAR(20) DEFAULT 'unpaid' NOT NULL"))
+
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_tuition_record_transfer_code ON tuition_records(transfer_code)"))
 
         # --- Data migration: classes.teacher_id → teacher_class_assignments ---
         # Tạo phân công cho các lớp có teacher_id cũ nhưng chưa có bản ghi trong bảng mới
         rows = conn.execute(
             text(
-                "SELECT id, teacher_id, salary_type, fixed_salary_per_session, salary_coefficient "
+                "SELECT id, teacher_id, salary_type, fixed_salary_per_session, salary_coefficient, "
+                "fixed_present_salary, fixed_late_salary, fixed_absent_salary "
                 "FROM classes WHERE teacher_id IS NOT NULL"
             )
         ).fetchall()
         for row in rows:
-            class_id, teacher_id, salary_type, fixed_sal, coeff = row
+            class_id, teacher_id, salary_type, fixed_sal, coeff, fps, fls, fas = row
             existing = conn.execute(
                 text(
                     "SELECT id FROM teacher_class_assignments "
@@ -70,8 +117,9 @@ def init_db() -> None:
                 conn.execute(
                     text(
                         "INSERT INTO teacher_class_assignments "
-                        "(class_id, teacher_id, role, salary_type, fixed_salary_per_session, salary_coefficient, is_active) "
-                        "VALUES (:cid, :tid, 'main', :stype, :fixed, :coeff, 1)"
+                        "(class_id, teacher_id, role, salary_type, fixed_salary_per_session, salary_coefficient, is_active, "
+                        "fixed_present_salary, fixed_late_salary, fixed_absent_salary) "
+                        "VALUES (:cid, :tid, 'main', :stype, :fixed, :coeff, 1, :fps, :fls, :fas)"
                     ),
                     {
                         "cid": class_id,
@@ -79,6 +127,9 @@ def init_db() -> None:
                         "stype": salary_type,
                         "fixed": fixed_sal,
                         "coeff": coeff,
+                        "fps": fps,
+                        "fls": fls,
+                        "fas": fas,
                     },
                 )
         conn.commit()

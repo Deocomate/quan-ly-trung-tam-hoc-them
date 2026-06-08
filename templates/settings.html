@@ -19,6 +19,27 @@
         <label class="label text-slate-700 font-semibold mb-1">Lưu ý (Chấp nhận định dạng HTML)</label>
         <textarea id="receipt_footer" name="receipt_footer" class="field rounded-lg border-slate-200"></textarea>
       </div>
+
+      <!-- Cấu hình tài khoản ngân hàng VietQR -->
+      <div class="md:col-span-2 border-t border-slate-100 pt-4 mt-2">
+        <h3 class="text-md font-bold text-[#0F766E] mb-3">Cấu hình chuyển khoản VietQR</h3>
+        <div class="grid gap-4 md:grid-cols-3">
+          <div>
+            <label class="label text-slate-700 font-semibold mb-1">Ngân hàng thụ hưởng</label>
+            <select class="field rounded-lg border-slate-200" name="vietqr_bank_id" id="vietqr_bank_id">
+              <option value="">Đang tải danh sách ngân hàng...</option>
+            </select>
+          </div>
+          <div>
+            <label class="label text-slate-700 font-semibold mb-1">Số tài khoản</label>
+            <input class="field rounded-lg border-slate-200" type="text" name="vietqr_account_no" placeholder="VD: 0565651189" />
+          </div>
+          <div>
+            <label class="label text-slate-700 font-semibold mb-1">Tên chủ tài khoản (Không dấu)</label>
+            <input class="field rounded-lg border-slate-200" type="text" name="vietqr_account_name" placeholder="VD: NGUYEN VU MINH LONG" />
+          </div>
+        </div>
+      </div>
       
       <div class="md:col-span-2 flex justify-end"><button class="btn btn-primary py-2.5 px-6 rounded-lg font-bold">Lưu cài đặt</button></div>
     </form>
@@ -49,28 +70,28 @@
       </form>
     </section>
 
-    <!-- Mã QR thanh toán -->
+    <!-- Xem trước mã QR thanh toán động -->
     <section class="panel p-5 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col gap-4">
       <div>
-        <h2 class="text-lg font-extrabold text-slate-800 border-b border-slate-100 pb-3">Mã QR thanh toán</h2>
-        <p class="text-xs text-slate-500 mt-1">Ảnh QR hiển thị trên phiếu báo học phí.</p>
+        <h2 class="text-lg font-extrabold text-slate-800 border-b border-slate-100 pb-3">Mẫu QR chuyển khoản</h2>
+        <p class="text-xs text-slate-500 mt-1">QR Code sinh tự động theo cấu hình tài khoản.</p>
       </div>
-      <div class="flex justify-center items-center bg-slate-50 border border-slate-200 rounded-lg p-2 h-44 overflow-hidden">
-        <img id="qrPreview" src="{{ qr_url }}" alt="Mã QR thanh toán" class="max-h-full max-w-full object-contain" />
-      </div>
-      <form id="qrForm" class="space-y-3">
-        <div id="qrDropZone" class="drag-drop-zone border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#0F766E] hover:bg-slate-50 transition-colors duration-200">
-          <div class="space-y-1 pointer-events-none">
-            <svg class="mx-auto h-6 w-6 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <div class="text-xs text-slate-600">
-              <span class="font-bold text-[#0F766E]">Tải QR mới</span> hoặc kéo thả vào đây
-            </div>
-          </div>
-          <input id="qrFileInput" name="file" type="file" accept="image/*" class="hidden" required />
+      <div class="flex justify-center items-center bg-slate-50 border border-slate-200 rounded-lg p-2 h-56 overflow-hidden relative">
+        <img id="qrPreview" src="" alt="Mã QR thanh toán" class="max-h-full max-w-full object-contain hidden" />
+        <div id="qrPlaceholder" class="text-slate-400 text-xs text-center p-4">
+          <svg class="mx-auto h-12 w-12 text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h.01M16 12h.01M8 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Chọn Ngân hàng, nhập Số tài khoản & Tên chủ tài khoản để xem trước mã QR mẫu.
         </div>
-      </form>
+      </div>
+      <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
+        <span class="font-bold text-slate-700">Thông tin chuyển khoản mẫu:</span>
+        <ul class="list-disc list-inside mt-1 space-y-0.5">
+          <li>Số tiền: 100.000đ</li>
+          <li>Nội dung: MAU QR DEMO</li>
+        </ul>
+      </div>
     </section>
   </div>
 </div>
@@ -88,9 +109,12 @@
     "payment_deadline",
     "payment_content_template",
     "receipt_footer",
+    "vietqr_bank_id",
+    "vietqr_account_no",
+    "vietqr_account_name",
   ];
 
-  $(document).ready(function() {
+  $(document).ready(async function() {
     $('#receipt_footer').summernote({
       placeholder: 'Nhập các lưu ý về học phí (ví dụ: hạn nộp, tài khoản ngân hàng)...',
       height: 160,
@@ -105,8 +129,104 @@
         ['view', ['codeview', 'help']]
       ]
     });
-    loadSettings().catch((err) => toast(err.message, true));
+    
+    // Load bank list first, then settings
+    await loadBanks();
+    await loadSettings().catch((err) => toast(err.message, true));
+    
+    // Listen to changes to update QR Preview live
+    const bankSelect = document.getElementsByName("vietqr_bank_id")[0];
+    const accNoInput = document.getElementsByName("vietqr_account_no")[0];
+    const accNameInput = document.getElementsByName("vietqr_account_name")[0];
+    
+    [bankSelect, accNoInput, accNameInput].forEach(el => {
+      if (el) {
+        el.addEventListener("input", updateQrPreview);
+        el.addEventListener("change", updateQrPreview);
+      }
+    });
+    
+    // Bind jQuery change event for select2
+    $("#vietqr_bank_id").on("change", updateQrPreview);
+    
+    updateQrPreview();
   });
+
+  async function loadBanks() {
+    const select = document.getElementById("vietqr_bank_id");
+    try {
+      const res = await fetch("https://api.vietqr.io/v2/banks");
+      if (!res.ok) throw new Error("Failed to fetch banks");
+      const json = await res.json();
+      if (json.code === "00" && json.data) {
+        select.innerHTML = '<option value="">-- Chọn ngân hàng --</option>';
+        json.data.forEach(bank => {
+          if (bank.transferSupported === 1) {
+            const option = document.createElement("option");
+            option.value = bank.bin;
+            option.textContent = `${bank.shortName} - ${bank.name}`;
+            select.appendChild(option);
+          }
+        });
+        
+        // Initialize select2 with search
+        $("#vietqr_bank_id").select2({
+          placeholder: "-- Chọn ngân hàng --",
+          allowClear: true,
+          width: '100%'
+        });
+        return;
+      }
+    } catch (err) {
+      console.error("Error loading bank list:", err);
+    }
+    // Fallback if API fails
+    select.innerHTML = '<option value="">-- Không thể tải danh sách (Sử dụng thủ công) --</option>';
+    $("#vietqr_bank_id").select2({
+      placeholder: "-- Chọn ngân hàng --",
+      allowClear: true,
+      width: '100%'
+    });
+  }
+
+  function updateQrPreview() {
+    const bankId = document.getElementsByName("vietqr_bank_id")[0]?.value || "";
+    const accountNo = document.getElementsByName("vietqr_account_no")[0]?.value || "";
+    let accountName = document.getElementsByName("vietqr_account_name")[0]?.value || "";
+    
+    accountName = normalizeText(accountName);
+    
+    const qrPreview = document.getElementById("qrPreview");
+    const qrPlaceholder = document.getElementById("qrPlaceholder");
+    
+    if (bankId && accountNo && accountName) {
+      const amount = 100000;
+      const addInfo = "MAU QR DEMO";
+      const encodedName = encodeURIComponent(accountName);
+      const encodedInfo = encodeURIComponent(addInfo);
+      
+      const url = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodedInfo}&accountName=${encodedName}`;
+      
+      qrPreview.src = url;
+      qrPreview.classList.remove("hidden");
+      qrPlaceholder.classList.add("hidden");
+    } else {
+      qrPreview.classList.add("hidden");
+      qrPlaceholder.classList.remove("hidden");
+    }
+  }
+
+  function normalizeText(text) {
+    if (!text) return "";
+    return text.normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .replace(/[^a-zA-Z0-9 ]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
+  }
 
   async function loadSettings() {
     const settings = await api("/api/settings");
@@ -119,6 +239,8 @@
         form.elements[name].value = value;
       }
     }
+    // Programmatically set select2 value and trigger UI update
+    $("#vietqr_bank_id").val(settings["vietqr_bank_id"] || "").trigger("change");
   }
 
   document.getElementById("settingsForm").addEventListener("submit", async (event) => {
@@ -182,56 +304,6 @@
       document.getElementById("logoForm").reset();
     } catch (err) {
       toast("Lỗi khi tải logo: " + err.message, true);
-    }
-  }
-
-  // Setup Drag & Drop for QR Code
-  const qrDropZone = document.getElementById("qrDropZone");
-  const qrFileInput = document.getElementById("qrFileInput");
-
-  qrDropZone.addEventListener("click", () => qrFileInput.click());
-
-  ["dragenter", "dragover", "dragleave", "drop"].forEach(eventName => {
-    qrDropZone.addEventListener(eventName, e => {
-      e.preventDefault();
-      e.stopPropagation();
-    }, false);
-  });
-
-  ["dragenter", "dragover"].forEach(eventName => {
-    qrDropZone.addEventListener(eventName, () => qrDropZone.classList.add("border-[#0F766E]", "bg-slate-50"), false);
-  });
-
-  ["dragleave", "drop"].forEach(eventName => {
-    qrDropZone.addEventListener(eventName, () => qrDropZone.classList.remove("border-[#0F766E]", "bg-slate-50"), false);
-  });
-
-  qrDropZone.addEventListener("drop", (e) => {
-    const dt = e.dataTransfer;
-    const files = dt.files;
-    if (files.length > 0) {
-      qrFileInput.files = files;
-      uploadQrImage();
-    }
-  }, false);
-
-  qrFileInput.addEventListener("change", () => {
-    if (qrFileInput.files.length > 0) {
-      uploadQrImage();
-    }
-  });
-
-  async function uploadQrImage() {
-    const data = new FormData(document.getElementById("qrForm"));
-    try {
-      const result = await api("/api/settings/qr", { method: "POST", body: data });
-      toast("Đã cập nhật mã QR thành công.");
-      // Refresh preview image
-      const preview = document.getElementById("qrPreview");
-      preview.src = result.url;
-      document.getElementById("qrForm").reset();
-    } catch (err) {
-      toast("Lỗi khi tải QR: " + err.message, true);
     }
   }
 </script>

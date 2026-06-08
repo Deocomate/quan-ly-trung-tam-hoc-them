@@ -47,12 +47,60 @@
           <th class="font-bold text-slate-700">Học sinh</th>
           <th class="font-bold text-slate-700">Số buổi học</th>
           <th class="font-bold text-slate-700">Tổng tiền</th>
+          <th class="font-bold text-slate-700">Đã thu</th>
+          <th class="font-bold text-slate-700">Còn nợ</th>
+          <th class="font-bold text-slate-700">Trạng thái</th>
           <th class="font-bold text-slate-700">Chi tiết học phí</th>
-          <th class="font-bold text-slate-700">Phiếu thu</th>
+          <th class="font-bold text-slate-700">Thao tác</th>
         </tr>
       </thead>
       <tbody id="tuitionRows"></tbody>
     </table>
+  </div>
+
+  <!-- Modal Cập nhật thanh toán -->
+  <div id="paymentModal" class="modal-backdrop hidden">
+    <form id="paymentForm" class="modal panel p-6 max-w-md bg-white rounded-xl shadow-lg border border-slate-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+        <h3 class="text-lg font-extrabold text-slate-800">Cập nhật thanh toán học phí</h3>
+        <button type="button" class="text-slate-400 hover:text-slate-600 font-bold text-xl" onclick="closePaymentModal()">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <span class="text-xs text-slate-400 font-semibold block uppercase">Học sinh</span>
+          <span id="paymentStudentName" class="text-md font-bold text-slate-800 block"></span>
+          <span id="paymentStudentCode" class="text-xs text-slate-500 font-mono block mt-0.5"></span>
+        </div>
+        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+          <div>
+            <span class="text-xs text-slate-400 font-semibold block uppercase">Tổng học phí</span>
+            <span id="paymentTotalAmount" class="text-md font-extrabold text-teal-800 block"></span>
+          </div>
+          <div>
+            <span class="text-xs text-slate-400 font-semibold block uppercase">Đã đóng trước đó</span>
+            <span id="paymentPrevPaid" class="text-md font-bold text-slate-700 block"></span>
+          </div>
+        </div>
+        <input type="hidden" id="paymentRecordId" />
+        <div>
+          <label class="label text-slate-700 font-semibold mb-1">Số tiền đã thu (Tổng cộng)</label>
+          <div class="relative">
+            <input id="paymentPaidAmount" class="field rounded-lg border-slate-200 pr-12 font-bold text-teal-800" type="number" min="0" required />
+            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400 font-bold text-sm">
+              VNĐ
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-muted flex-1 py-2 font-bold justify-center" onclick="fillQuickPaid(0)">Đặt lại (0đ)</button>
+          <button type="button" class="btn btn-muted flex-1 py-2 font-bold justify-center" id="quickPaidFullBtn" onclick="fillQuickPaid(1)">Đóng đủ</button>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-slate-100 pt-4 mt-2">
+          <button type="button" class="btn btn-muted px-4 py-2 font-bold" onclick="closePaymentModal()">Hủy</button>
+          <button type="submit" class="btn btn-primary px-5 py-2 font-bold">Lưu thay đổi</button>
+        </div>
+      </div>
+    </form>
   </div>
 </section>
 {% endblock %}
@@ -146,6 +194,33 @@
       const pdfBtnText = isLocked ? "Xuất PDF" : "Xuất PDF (Tạm)";
       const pdfBtn = `<a class="btn btn-muted !min-height-0 !py-1 !px-2.5 text-xs font-semibold" href="/api/tuition/export-pdf?month=${month}&year=${year}&student_id=${row.student_id}">${pdfBtnText}</a>`;
 
+      // Paid amount and remaining balance
+      const paid = isLocked ? (row.paid_amount || 0) : 0;
+      const total = row.total_amount || 0;
+      const debt = total - paid;
+      
+      // Status badge
+      let statusBadge = "";
+      if (!isLocked) {
+        statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">Chưa chốt</span>`;
+      } else {
+        const status = row.payment_status || "unpaid";
+        if (status === "paid") {
+          statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">Đã thu đủ</span>`;
+        } else if (status === "partial") {
+          statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Thu một phần</span>`;
+        } else {
+          statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">Chưa thu</span>`;
+        }
+      }
+
+      // Actions: payment button (only when locked)
+      let payBtn = "";
+      if (isLocked) {
+        const escName = row.student_name.replace(/'/g, "\\'");
+        payBtn = `<button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold ml-1.5" onclick="openPaymentModal(${row.id}, '${escName}', '${row.student_code}', ${total}, ${paid})">Thanh toán</button>`;
+      }
+
       return `
         <tr>
           <td>
@@ -153,13 +228,67 @@
             <div class="text-xs text-slate-400 font-mono mt-0.5">${row.student_code}</div>
           </td>
           <td class="font-semibold text-slate-700">${row.total_sessions} buổi</td>
-          <td class="font-bold text-teal-800">${formatMoney(row.total_amount)}</td>
+          <td class="font-bold text-slate-800">${formatMoney(total)}</td>
+          <td class="font-semibold text-green-700">${formatMoney(paid)}</td>
+          <td class="font-semibold text-rose-700">${formatMoney(debt)}</td>
+          <td>${statusBadge}</td>
           <td class="text-sm text-slate-600 leading-relaxed">${itemsHtml}</td>
-          <td>${pdfBtn}</td>
+          <td>
+            <div class="flex items-center">
+              ${pdfBtn}
+              ${payBtn}
+            </div>
+          </td>
         </tr>
       `;
     }).join("");
   }
+
+  let currentTotalForModal = 0;
+  
+  function openPaymentModal(recordId, name, code, total, paid) {
+    document.getElementById("paymentRecordId").value = recordId;
+    document.getElementById("paymentStudentName").textContent = name;
+    document.getElementById("paymentStudentCode").textContent = code;
+    document.getElementById("paymentTotalAmount").textContent = formatMoney(total);
+    document.getElementById("paymentPrevPaid").textContent = formatMoney(paid);
+    document.getElementById("paymentPaidAmount").value = paid;
+    currentTotalForModal = total;
+    
+    document.getElementById("paymentModal").classList.remove("hidden");
+  }
+
+  function closePaymentModal() {
+    document.getElementById("paymentModal").classList.add("hidden");
+    document.getElementById("paymentForm").reset();
+  }
+
+  function fillQuickPaid(type) {
+    const input = document.getElementById("paymentPaidAmount");
+    if (type === 0) {
+      input.value = 0;
+    } else if (type === 1) {
+      input.value = currentTotalForModal;
+    }
+  }
+
+  document.getElementById("paymentForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const recordId = document.getElementById("paymentRecordId").value;
+    const paidAmount = Number(document.getElementById("paymentPaidAmount").value);
+    
+    try {
+      await api(`/api/tuition/records/${recordId}/payment`, {
+        method: "PUT",
+        body: JSON.stringify({ paid_amount: paidAmount })
+      });
+      toast("Đã cập nhật thanh toán thành công.");
+      closePaymentModal();
+      await loadTuition();
+    } catch (err) {
+      toast("Lỗi khi cập nhật thanh toán: " + err.message, true);
+    }
+  });
 
   async function editTuitionNote(itemId, currentNote) {
     const newNote = prompt("Nhập ghi chú cho môn học này:", currentNote);

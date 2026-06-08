@@ -393,3 +393,172 @@ def test_payroll_full_flow() -> None:
         assert locked_all_pdf.headers["Content-Type"] == "application/pdf"
         assert len(locked_all_pdf.content) > 0
         assert "phieu-luong-all" in locked_all_pdf.headers.get("Content-Disposition", "")
+
+
+def test_advanced_payroll_and_deactivation() -> None:
+    with TestClient(app) as client:
+        login(client)
+
+        # 1. Create Teacher
+        t_resp = client.post(
+            "/api/teachers",
+            json={
+                "full_name": "TEST_TCH_ADV_1",
+                "phone": "0900000003",
+                "email": "tadv@test.com",
+                "default_salary_coefficient": 1.0,
+                "is_active": True,
+            },
+        )
+        assert t_resp.status_code == 200
+        t = t_resp.json()
+
+        # 2. Create Class with advanced rates configuration
+        c_resp = client.post(
+            "/api/classes",
+            json={
+                "name": "TEST_CL_ADV",
+                "subject": "TIENG_ANH",
+                "school_year": "2099 - 2100",
+                "default_fee": 150000,
+                "notes": "",
+                "is_active": True,
+                "assignments": [
+                    {
+                        "teacher_id": t["id"],
+                        "role": "main",
+                        "salary_type": "fixed",
+                        "fixed_salary_per_session": 400000,
+                        "fixed_present_salary": 400000,
+                        "fixed_late_salary": 250000,
+                        "fixed_absent_salary": 5000,
+                        "is_active": True,
+                    }
+                ],
+            },
+        )
+        assert c_resp.status_code == 200
+        c = c_resp.json()
+
+        # 3. Create Student
+        s_resp = client.post(
+            "/api/students",
+            json={
+                "student_code": "TEST_ST_ADV",
+                "full_name": "TEST_STUDENT_ADV",
+                "parent_phone": "0900000200",
+                "notes": "",
+                "is_active": True,
+            },
+        )
+        assert s_resp.status_code == 200
+        s = s_resp.json()
+
+        # 4. Enroll Student
+        enroll_resp = client.post(
+            "/api/enrollments",
+            json={
+                "student_id": s["id"],
+                "class_ids": [c["id"]],
+                "custom_fee": None,
+                "is_exempt": False,
+                "start_date": "2099-12-01",
+                "is_active": True,
+                "notes": "",
+            },
+        )
+        assert enroll_resp.status_code == 200
+
+        # 5. Add student attendance (so there is a class session)
+        client.post("/api/attendance/bulk", json={"class_id": c["id"], "date": "2099-12-01", "items": [{"student_id": s["id"], "status": "P"}]})
+        client.post("/api/attendance/bulk", json={"class_id": c["id"], "date": "2099-12-02", "items": [{"student_id": s["id"], "status": "P"}]})
+        client.post("/api/attendance/bulk", json={"class_id": c["id"], "date": "2099-12-03", "items": [{"student_id": s["id"], "status": "P"}]})
+        client.post("/api/attendance/bulk", json={"class_id": c["id"], "date": "2099-12-04", "items": [{"student_id": s["id"], "status": "P"}]})
+
+        # 6. Add teacher attendance: 2 Present (P), 1 Late (M), 1 Absent (V)
+        client.put("/api/teacher-attendance/single", json={"class_id": c["id"], "teacher_id": t["id"], "date": "2099-12-01", "status": "P"})
+        client.put("/api/teacher-attendance/single", json={"class_id": c["id"], "teacher_id": t["id"], "date": "2099-12-02", "status": "P"})
+        client.put("/api/teacher-attendance/single", json={"class_id": c["id"], "teacher_id": t["id"], "date": "2099-12-03", "status": "M"})
+        client.put("/api/teacher-attendance/single", json={"class_id": c["id"], "teacher_id": t["id"], "date": "2099-12-04", "status": "V"})
+
+        # 7. Lock Tuition Period to calculate and save Class Revenue
+        lock_tuition_resp = client.post("/api/tuition/lock", json={"month": 12, "year": 2099, "class_id": None})
+        assert lock_tuition_resp.status_code == 200
+
+        # 8. Preview Payroll and Verify Calculations
+        preview_resp = client.get("/api/payroll/preview?month=12&year=2099")
+        assert preview_resp.status_code == 200
+        preview_data = preview_resp.json()
+        
+        records = preview_data["records"]
+        t_rec = next(r for r in records if r["teacher_id"] == t["id"])
+        
+        # Total salary: (2 * 400000) + (1 * 250000) + (1 * 5000) = 1,055,000
+        assert t_rec["total_salary"] == 1055000
+        c_item = next(cl for cl in t_rec["classes"] if cl["class_id"] == c["id"])
+        assert c_item["sessions"] == 3  # P + M = 3 sessions
+        assert c_item["sessions_present"] == 2
+        assert c_item["sessions_late"] == 1
+        assert c_item["sessions_absent"] == 1
+        assert c_item["fixed_present_salary"] == 400000
+        assert c_item["fixed_late_salary"] == 250000
+        assert c_item["fixed_absent_salary"] == 5000
+
+        # 9. Test soft deactivation of assignment
+        # Deactivate assignment (is_active = False)
+        update_cls_resp = client.put(
+            f"/api/classes/{c['id']}",
+            json={
+                "name": "TEST_CL_ADV",
+                "subject": "TIENG_ANH",
+                "school_year": "2099 - 2100",
+                "default_fee": 150000,
+                "notes": "",
+                "is_active": True,
+                "assignments": [
+                    {
+                        "teacher_id": t["id"],
+                        "role": "main",
+                        "salary_type": "fixed",
+                        "fixed_salary_per_session": 400000,
+                        "fixed_present_salary": 400000,
+                        "fixed_late_salary": 250000,
+                        "fixed_absent_salary": 5000,
+                        "is_active": False,  # Ngừng dạy
+                    }
+                ],
+            },
+        )
+        assert update_cls_resp.status_code == 200
+
+        # Preview payroll for Dec 2099: should STILL calculate because they have attendance records!
+        preview_resp_dec = client.get("/api/payroll/preview?month=12&year=2099")
+        assert preview_resp_dec.status_code == 200
+        t_rec_dec = next(r for r in preview_resp_dec.json()["records"] if r["teacher_id"] == t["id"])
+        assert len(t_rec_dec["classes"]) == 1
+        assert t_rec_dec["total_salary"] == 1055000
+
+        # Preview payroll for Jan 2100: should NOT calculate since assignment is Inactive and there is no attendance in Jan 2100!
+        preview_resp_jan = client.get("/api/payroll/preview?month=1&year=2100")
+        assert preview_resp_jan.status_code == 200
+        t_rec_jan = next((r for r in preview_resp_jan.json()["records"] if r["teacher_id"] == t["id"]), None)
+        if t_rec_jan:
+            assert len(t_rec_jan["classes"]) == 0
+
+        # 10. Test hard delete protection: attempting to remove the assignment completely from payload
+        delete_assignment_resp = client.put(
+            f"/api/classes/{c['id']}",
+            json={
+                "name": "TEST_CL_ADV",
+                "subject": "TIENG_ANH",
+                "school_year": "2099 - 2100",
+                "default_fee": 150000,
+                "notes": "",
+                "is_active": True,
+                "assignments": [],  # Tried to remove assignment completely
+            },
+        )
+        # Should return 400 Bad Request
+        assert delete_assignment_resp.status_code == 400
+        assert "Không thể xóa giáo viên" in delete_assignment_resp.json()["detail"]
+

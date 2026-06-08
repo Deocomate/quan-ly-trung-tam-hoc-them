@@ -13,7 +13,7 @@
     <!-- Thêm Select2 CDN -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <link rel="stylesheet" href="/static/css/app.css?v=modal-white-20260607" />
+    <link rel="stylesheet" href="/static/css/app.css?v=sidebar-grouped-20260608" />
   </head>
   <body>
     <div class="app-shell">
@@ -25,18 +25,96 @@
             <div class="text-[10px] text-slate-400">Hệ thống nội bộ</div>
           </div>
         </div>
-        <nav class="space-y-1">
-          <a class="nav-link {{ 'active' if active == 'dashboard' else '' }}" href="/dashboard">Tổng quan</a>
-          <a class="nav-link {{ 'active' if active == 'students' else '' }}" href="/students">Học sinh</a>
-          <a class="nav-link {{ 'active' if active == 'classes' else '' }}" href="/classes">Lớp/Môn học</a>
-          <a class="nav-link {{ 'active' if active == 'attendance' else '' }}" href="/attendance">Điểm danh</a>
-          <a class="nav-link {{ 'active' if active == 'tuition' else '' }}" href="/tuition">Học phí</a>
-          <a class="nav-link {{ 'active' if active == 'teachers' else '' }}" href="/teachers">Giáo viên</a>
-          <a class="nav-link {{ 'active' if active == 'payroll' else '' }}" href="/payroll">Lương giáo viên</a>
-          <a class="nav-link {{ 'active' if active == 'settings' else '' }}" href="/settings">Cài đặt phiếu thu</a>
-          <a class="nav-link {{ 'active' if active == 'data_management' else '' }}" href="/data-management">Quản lý dữ liệu</a>
-          <a class="nav-link {{ 'active' if active == 'center_info' else '' }}" href="/center-info">Thông tin trung tâm</a>
-          <a class="nav-link {{ 'active' if active == 'admin_users' else '' }}" href="/admin-users">Tài khoản</a>
+        <nav class="space-y-1 pb-8">
+          <!-- NHÓM 1: TỔNG QUAN -->
+          <a class="nav-link {{ 'active' if active == 'dashboard' else '' }}" href="/dashboard">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            </svg>
+            Tổng quan
+          </a>
+
+          <!-- NHÓM 2: VẬN HÀNH ĐÀO TẠO -->
+          <div class="nav-group-title">Đào tạo & Học vụ</div>
+          
+          <a class="nav-link {{ 'active' if active == 'classes' else '' }}" href="/classes">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Lớp & Môn học
+          </a>
+          
+          <a class="nav-link {{ 'active' if active == 'students' else '' }}" href="/students">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            Học sinh
+          </a>
+
+          <a class="nav-link {{ 'active' if active == 'attendance' else '' }}" href="/attendance">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            Điểm danh
+          </a>
+
+          <!-- NHÓM 3: NHÂN SỰ -->
+          <div class="nav-group-title">Nhân sự</div>
+          
+          <a class="nav-link {{ 'active' if active == 'teachers' else '' }}" href="/teachers">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            Giáo viên
+          </a>
+
+          <!-- NHÓM 4: TÀI CHÍNH -->
+          <div class="nav-group-title">Tài chính</div>
+
+          <a class="nav-link {{ 'active' if active == 'tuition' else '' }}" href="/tuition">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Học phí
+          </a>
+
+          <a class="nav-link {{ 'active' if active == 'payroll' else '' }}" href="/payroll">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            Lương giáo viên
+          </a>
+
+          <!-- NHÓM 5: HỆ THỐNG -->
+          <div class="nav-group-title">Hệ thống & Cài đặt</div>
+
+          <a class="nav-link {{ 'active' if active == 'center_info' else '' }}" href="/center-info">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            Thông tin trung tâm
+          </a>
+
+          <a class="nav-link {{ 'active' if active == 'settings' else '' }}" href="/settings">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Cấu hình Phiếu thu
+          </a>
+
+          <a class="nav-link {{ 'active' if active == 'admin_users' else '' }}" href="/admin-users">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Tài khoản quản trị
+          </a>
+
+          <a class="nav-link {{ 'active' if active == 'data_management' else '' }}" href="/data-management">
+            <svg class="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
+            Quản lý Dữ liệu
+          </a>
         </nav>
       </aside>
       <main class="main-panel">

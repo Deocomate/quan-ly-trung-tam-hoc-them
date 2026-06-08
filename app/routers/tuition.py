@@ -62,6 +62,9 @@ def records(month: int | None = None, year: int | None = None, class_id: int | N
             "year": row.year,
             "total_sessions": row.total_sessions,
             "total_amount": row.total_amount,
+            "transfer_code": row.transfer_code,
+            "paid_amount": row.paid_amount,
+            "payment_status": row.payment_status,
             "items": [
                 {
                     "id": item.id,
@@ -174,3 +177,35 @@ def update_tuition_item_notes(item_id: int, payload: TuitionItemNotesUpdate, db:
     item.notes = payload.notes
     db.commit()
     return {"message": "Đã cập nhật ghi chú.", "notes": item.notes}
+
+
+class TuitionPaymentUpdate(BaseModel):
+    paid_amount: int
+
+
+@router.put("/records/{record_id}/payment")
+def update_tuition_payment(record_id: int, payload: TuitionPaymentUpdate, db: Session = Depends(get_db)):
+    record = db.get(TuitionRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiếu thu.")
+    
+    if payload.paid_amount < 0:
+        raise HTTPException(status_code=400, detail="Số tiền thanh toán không được âm.")
+        
+    record.paid_amount = payload.paid_amount
+    
+    if record.paid_amount >= record.total_amount:
+        record.payment_status = "paid"
+    elif record.paid_amount > 0:
+        record.payment_status = "partial"
+    else:
+        record.payment_status = "unpaid"
+        
+    db.commit()
+    return {
+        "message": "Đã cập nhật thanh toán.",
+        "paid_amount": record.paid_amount,
+        "payment_status": record.payment_status,
+        "debt": max(0, record.total_amount - record.paid_amount)
+    }
+

@@ -71,6 +71,7 @@ class Class(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     subject: Mapped[str] = mapped_column(String(120), nullable=False)
+    school_year: Mapped[str | None] = mapped_column(String(40), nullable=True)
     default_fee: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -82,6 +83,9 @@ class Class(Base):
     teacher_id: Mapped[int | None] = mapped_column(ForeignKey("teachers.id"), nullable=True)
     salary_type: Mapped[str] = mapped_column(String(20), default="fixed", nullable=False) # "fixed" hoặc "coefficient"
     fixed_salary_per_session: Mapped[int] = mapped_column(Integer, default=450000, nullable=False)
+    fixed_present_salary: Mapped[int] = mapped_column(Integer, default=450000, nullable=False)
+    fixed_late_salary: Mapped[int] = mapped_column(Integer, default=315000, nullable=False)
+    fixed_absent_salary: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     salary_coefficient: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
 
     teacher: Mapped[Teacher | None] = relationship(back_populates="classes")
@@ -102,6 +106,9 @@ class TeacherClassAssignment(Base):
     role: Mapped[str] = mapped_column(String(20), default="main", nullable=False)  # "main" hoặc "assistant"
     salary_type: Mapped[str] = mapped_column(String(20), default="fixed", nullable=False)
     fixed_salary_per_session: Mapped[int] = mapped_column(Integer, default=450000, nullable=False)
+    fixed_present_salary: Mapped[int] = mapped_column(Integer, default=450000, nullable=False)
+    fixed_late_salary: Mapped[int] = mapped_column(Integer, default=315000, nullable=False)
+    fixed_absent_salary: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     salary_coefficient: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
@@ -185,6 +192,9 @@ class TuitionRecord(Base):
     total_sessions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_vietnam, nullable=False)
+    transfer_code: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
+    paid_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    payment_status: Mapped[str] = mapped_column(String(20), default="unpaid", nullable=False)
 
     student: Mapped[Student] = relationship(back_populates="tuition_records")
     items: Mapped[list["TuitionRecordItem"]] = relationship(back_populates="record", cascade="all, delete-orphan")
@@ -240,9 +250,15 @@ class TeacherSalaryRecordItem(Base):
     class_id: Mapped[int | None] = mapped_column(ForeignKey("classes.id"), nullable=True)
     class_name: Mapped[str] = mapped_column(String(120), nullable=False)
     sessions_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sessions_present: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sessions_late: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sessions_absent: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     class_revenue: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     salary_type: Mapped[str] = mapped_column(String(20), nullable=False)
     applied_rate: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    fixed_present_salary: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    fixed_late_salary: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    fixed_absent_salary: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     calculated_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     record: Mapped[TeacherSalaryRecord] = relationship(back_populates="items")

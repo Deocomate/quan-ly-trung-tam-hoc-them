@@ -206,16 +206,31 @@
     const rows = document.getElementById("detailRows");
     rows.innerHTML = teacher.classes.map(c => {
       const typeStr = c.salary_type === "fixed" ? "Lương cứng" : "Doanh thu";
-      const rateStr = c.salary_type === "fixed" ? formatMoney(c.applied_rate) : c.applied_rate.toFixed(2);
       const revStr = c.salary_type === "fixed" ? "-" : formatMoney(c.revenue);
+      
+      let sessStr = "";
+      let rateStr = "";
+      if (c.salary_type === "fixed") {
+        sessStr = `${c.sessions} buổi<br><span class="text-[10px] text-slate-500 font-semibold">(Đủ: ${c.sessions_present || 0}, Trễ: ${c.sessions_late || 0}, Vắng: ${c.sessions_absent || 0})</span>`;
+        rateStr = `
+          <div class="text-[11px] text-left leading-normal inline-block">
+            <div>Đủ: ${formatMoney(c.fixed_present_salary || 0)}</div>
+            <div>Trễ: ${formatMoney(c.fixed_late_salary || 0)}</div>
+            <div>Vắng: ${formatMoney(c.fixed_absent_salary || 0)}</div>
+          </div>
+        `;
+      } else {
+        sessStr = `<span class="font-mono">${c.sessions}</span>`;
+        rateStr = `<span class="font-mono">${c.applied_rate.toFixed(2)}</span>`;
+      }
 
       return `
         <tr>
           <td class="font-bold text-slate-800">${c.class_name}</td>
-          <td class="text-center font-mono">${c.sessions}</td>
+          <td class="text-center font-medium">${sessStr}</td>
           <td class="text-right font-mono">${revStr}</td>
           <td>${typeStr}</td>
-          <td class="font-mono text-center">${rateStr}</td>
+          <td class="text-center">${rateStr}</td>
           <td class="text-right font-mono font-bold text-slate-800">${formatMoney(c.amount)}</td>
         </tr>
       `;

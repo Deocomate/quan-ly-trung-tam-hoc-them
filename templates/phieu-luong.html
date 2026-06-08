@@ -179,7 +179,14 @@
           {% for item in record.items %}
           <tr>
             <td class="text-left font-bold">{{ item.class_name }}</td>
-            <td>{{ item.sessions_count }}</td>
+            <td>
+              {% if item.salary_type == 'fixed' %}
+              {{ item.sessions_count }} buổi<br/>
+              <span style="font-size: 10px; color: #555;">(Đủ: {{ item.sessions_present }}, Trễ: {{ item.sessions_late }}, Vắng: {{ item.sessions_absent }})</span>
+              {% else %}
+              {{ item.sessions_count }}
+              {% endif %}
+            </td>
             <td class="text-right">
               {% if item.salary_type == 'coefficient' %}
               {{ item.class_revenue | currency }}
@@ -196,7 +203,11 @@
             </td>
             <td>
               {% if item.salary_type == 'fixed' %}
-              {{ item.applied_rate | int | currency }}
+              <div style="font-size: 11px; text-align: left; display: inline-block; line-height: 1.2;">
+                <div>Đủ: {{ item.fixed_present_salary | currency }}</div>
+                <div>Trễ: {{ item.fixed_late_salary | currency }}</div>
+                <div>Vắng: {{ item.fixed_absent_salary | currency }}</div>
+              </div>
               {% else %}
               {{ item.applied_rate }}
               {% endif %}

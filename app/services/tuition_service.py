@@ -161,6 +161,22 @@ def lock_tuition_period(db: Session, month: int, year: int, user: User, class_id
         else:
             record.total_sessions = sum(it.sessions for it in items_in_db)
             record.total_amount = sum(it.amount for it in items_in_db)
+            
+            # Ensure transfer_code is set
+            if not record.transfer_code:
+                year_short = str(record.year)[-2:]
+                from app.services.vietqr_service import normalize_transfer_content
+                raw_code = f"HP {preview.student_code} {record.month:02d}{year_short}"
+                record.transfer_code = normalize_transfer_content(raw_code)
+                
+            # Recalculate status based on paid_amount and new total_amount
+            if record.paid_amount >= record.total_amount:
+                record.payment_status = "paid"
+            elif record.paid_amount > 0:
+                record.payment_status = "partial"
+            else:
+                record.payment_status = "unpaid"
+                
             records.append(record)
 
     period = get_period(db, month, year)

@@ -159,10 +159,8 @@
           <div class="body">
             <div class="left">
               <div class="student-line">
-                <div class="student-head">
-                  <span style="width: 180px">Kính gửi: Phụ huynh em:</span>
-                  <span class="student-name">{{ record.student.full_name }}</span>
-                  <span style="width: 80px; text-align: right">{{ record.student.student_code }}</span>
+                <div class="student-head" style="font-weight: normal; font-size: 16px; display: block; text-align: left;">
+                  <strong>Kính gửi: Phụ huynh em:</strong> <span style="font-weight: bold;">{{ record.student.full_name }}</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <strong>Mã học sinh:</strong> <span style="font-weight: bold;">{{ record.student.student_code }}</span>
                 </div>
                 <div style="margin-top: 4px">{{ settings.receipt_intro }}</div>
               </div>
@@ -191,9 +189,16 @@
                     <td><strong>{{ record.total_amount | currency }}</strong></td>
                     <td></td>
                   </tr>
+                  {% if record.paid_amount and record.paid_amount > 0 %}
+                  <tr>
+                    <td colspan="3">Đã thanh toán (VNĐ)</td>
+                    <td><strong style="color: #16a34a;">- {{ record.paid_amount | currency }}</strong></td>
+                    <td></td>
+                  </tr>
+                  {% endif %}
                   <tr>
                     <td colspan="3"><strong>SỐ TIỀN PHẢI NỘP (VNĐ)</strong></td>
-                    <td><strong>{{ record.total_amount | currency }}</strong></td>
+                    <td><strong>{{ (record.total_amount - (record.paid_amount or 0)) | currency }}</strong></td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -202,13 +207,19 @@
                 <div>{{ settings.payment_deadline }}</div>
                 <div style="margin-top: 4px">
                   <span style="display: inline-block; width: 180px">Nội dung chuyển khoản:</span>
-                  <span class="payment-content">{{ get_payment_content(record) }}</span>
+                  <span class="payment-content">{{ record.transfer_code or get_payment_content(record) }}</span>
                 </div>
                 <div style="margin-top: 4px">{{ settings.receipt_footer | safe }}</div>
               </div>
             </div>
             <div class="right">
-              <img class="qr" src="{{ qr_path }}" alt="Mã QR thanh toán" />
+              {% if (record.total_amount - (record.paid_amount or 0)) > 0 %}
+              <img class="qr" src="{{ record.qr_src }}" alt="Mã QR thanh toán" />
+              {% else %}
+              <div class="paid-stamp" style="border: 4px double #16a34a; color: #16a34a; font-weight: bold; font-size: 24px; padding: 15px 25px; text-align: center; text-transform: uppercase; transform: rotate(-5deg); border-radius: 8px; font-family: 'Times New Roman', Times, serif;">
+                Đã thanh toán
+              </div>
+              {% endif %}
             </div>
           </div>
         </div>

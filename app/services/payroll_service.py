@@ -76,9 +76,15 @@ def build_payroll_preview(db: Session, month: int, year: int) -> list[dict]:
                     "class_id": item.class_id,
                     "class_name": item.class_name,
                     "sessions": item.sessions_count,
+                    "sessions_present": getattr(item, "sessions_present", 0),
+                    "sessions_late": getattr(item, "sessions_late", 0),
+                    "sessions_absent": getattr(item, "sessions_absent", 0),
                     "revenue": item.class_revenue,
                     "salary_type": item.salary_type,
                     "applied_rate": item.applied_rate,
+                    "fixed_present_salary": getattr(item, "fixed_present_salary", 0),
+                    "fixed_late_salary": getattr(item, "fixed_late_salary", 0),
+                    "fixed_absent_salary": getattr(item, "fixed_absent_salary", 0),
                     "amount": item.calculated_amount
                 })
             results.append({
@@ -92,12 +98,11 @@ def build_payroll_preview(db: Session, month: int, year: int) -> list[dict]:
             class_items = []
             total_salary = 0
 
-            # Lấy tất cả phân công đang hoạt động của giáo viên này
+            # Lấy tất cả phân công của giáo viên này (cả hoạt động và ngừng dạy)
             assignments = db.scalars(
                 select(TeacherClassAssignment)
                 .where(
                     TeacherClassAssignment.teacher_id == teacher.id,
-                    TeacherClassAssignment.is_active.is_(True),
                 )
             ).all()
 
@@ -116,12 +121,24 @@ def build_payroll_preview(db: Session, month: int, year: int) -> list[dict]:
                     if class_.salary_type == "fixed":
                         applied_rate = float(class_.fixed_salary_per_session)
                         amount = sessions * class_.fixed_salary_per_session
+                        sessions_present = sessions
+                        sessions_late = 0
+                        sessions_absent = 0
+                        fps = class_.fixed_present_salary
+                        fls = class_.fixed_late_salary
+                        fas = class_.fixed_absent_salary
                     else:  # "coefficient"
                         if class_.salary_coefficient != 1.0:
                             applied_rate = class_.salary_coefficient
                         else:
                             applied_rate = teacher.default_salary_coefficient
                         amount = int(revenue * applied_rate)
+                        sessions_present = sessions
+                        sessions_late = 0
+                        sessions_absent = 0
+                        fps = 0
+                        fls = 0
+                        fas = 0
 
                     class_items.append({
                         "class_id": class_.id,
@@ -130,23 +147,56 @@ def build_payroll_preview(db: Session, month: int, year: int) -> list[dict]:
                         "revenue": revenue,
                         "salary_type": class_.salary_type,
                         "applied_rate": applied_rate,
-                        "amount": amount
+                        "amount": amount,
+                        "sessions_present": sessions_present,
+                        "sessions_late": sessions_late,
+                        "sessions_absent": sessions_absent,
+                        "fixed_present_salary": fps,
+                        "fixed_late_salary": fls,
+                        "fixed_absent_salary": fas,
                     })
                     total_salary += amount
             else:
                 # Dùng cơ chế mới: TeacherClassAssignment + TeacherAttendance
                 for assignment in assignments:
-                    sessions = calculate_teacher_sessions(
-                        db, teacher.id, assignment.class_id, month, year
-                    )
+                    # Lấy điểm danh của giáo viên trong kỳ
+                    from app.models import TeacherAttendance
+                    start_dt, end_dt = month_bounds(year, month)
+                    attendances = db.scalars(
+                        select(TeacherAttendance)
+                        .where(
+                            TeacherAttendance.teacher_id == teacher.id,
+                            TeacherAttendance.class_id == assignment.class_id,
+                            TeacherAttendance.date >= start_dt,
+                            TeacherAttendance.date < end_dt
+                        )
+                    ).all()
+
+                    # Nếu phân công đã ngưng hoạt động và không có dữ liệu điểm danh nào trong kỳ thì bỏ qua
+                    if not assignment.is_active and not attendances:
+                        continue
+
+                    count_p = sum(1 for a in attendances if a.status == "P")
+                    count_m = sum(1 for a in attendances if a.status == "M")
+                    count_v = sum(1 for a in attendances if a.status == "V")
+                    sessions = count_p + count_m
+
                     revenue = calculate_class_revenue(db, assignment.class_id, month, year)
 
                     if assignment.salary_type == "fixed":
                         applied_rate = float(assignment.fixed_salary_per_session)
-                        amount = sessions * assignment.fixed_salary_per_session
+                        amount = (count_p * assignment.fixed_present_salary) + \
+                                 (count_m * assignment.fixed_late_salary) + \
+                                 (count_v * assignment.fixed_absent_salary)
+                        fps = assignment.fixed_present_salary
+                        fls = assignment.fixed_late_salary
+                        fas = assignment.fixed_absent_salary
                     else:  # "coefficient"
                         applied_rate = assignment.salary_coefficient
                         amount = int(revenue * applied_rate)
+                        fps = 0
+                        fls = 0
+                        fas = 0
 
                     # Lấy tên lớp
                     from app.models import Class
@@ -160,7 +210,13 @@ def build_payroll_preview(db: Session, month: int, year: int) -> list[dict]:
                         "revenue": revenue,
                         "salary_type": assignment.salary_type,
                         "applied_rate": applied_rate,
-                        "amount": amount
+                        "amount": amount,
+                        "sessions_present": count_p,
+                        "sessions_late": count_m,
+                        "sessions_absent": count_v,
+                        "fixed_present_salary": fps,
+                        "fixed_late_salary": fls,
+                        "fixed_absent_salary": fas,
                     })
                     total_salary += amount
 
@@ -224,7 +280,13 @@ def lock_payroll_period(db: Session, month: int, year: int, user_id: int) -> lis
                 class_revenue=c["revenue"],
                 salary_type=c["salary_type"],
                 applied_rate=c["applied_rate"],
-                calculated_amount=c["amount"]
+                calculated_amount=c["amount"],
+                sessions_present=c.get("sessions_present", 0),
+                sessions_late=c.get("sessions_late", 0),
+                sessions_absent=c.get("sessions_absent", 0),
+                fixed_present_salary=c.get("fixed_present_salary", 0),
+                fixed_late_salary=c.get("fixed_late_salary", 0),
+                fixed_absent_salary=c.get("fixed_absent_salary", 0),
             )
             db.add(item)
         records.append(record)

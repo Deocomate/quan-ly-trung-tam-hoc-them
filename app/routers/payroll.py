@@ -26,13 +26,21 @@ def slugify_vietnamese(name: str) -> str:
 
 
 class TemporaryPayrollItem:
-    def __init__(self, class_name, sessions_count, class_revenue, salary_type, applied_rate, calculated_amount):
+    def __init__(self, class_name, sessions_count, class_revenue, salary_type, applied_rate, calculated_amount,
+                 sessions_present=0, sessions_late=0, sessions_absent=0,
+                 fixed_present_salary=0, fixed_late_salary=0, fixed_absent_salary=0):
         self.class_name = class_name
         self.sessions_count = sessions_count
         self.class_revenue = class_revenue
         self.salary_type = salary_type
         self.applied_rate = applied_rate
         self.calculated_amount = calculated_amount
+        self.sessions_present = sessions_present
+        self.sessions_late = sessions_late
+        self.sessions_absent = sessions_absent
+        self.fixed_present_salary = fixed_present_salary
+        self.fixed_late_salary = fixed_late_salary
+        self.fixed_absent_salary = fixed_absent_salary
 
 
 class TemporaryPayrollRecord:
@@ -95,9 +103,15 @@ def list_records(month: int | None = None, year: int | None = None, db: Session 
                 {
                     "class_name": item.class_name,
                     "sessions_count": item.sessions_count,
+                    "sessions_present": item.sessions_present,
+                    "sessions_late": item.sessions_late,
+                    "sessions_absent": item.sessions_absent,
                     "class_revenue": item.class_revenue,
                     "salary_type": item.salary_type,
                     "applied_rate": item.applied_rate,
+                    "fixed_present_salary": item.fixed_present_salary,
+                    "fixed_late_salary": item.fixed_late_salary,
+                    "fixed_absent_salary": item.fixed_absent_salary,
                     "calculated_amount": item.calculated_amount,
                 }
                 for item in row.items
@@ -181,7 +195,13 @@ def export_payroll_pdf(
                     class_revenue=c["revenue"],
                     salary_type=c["salary_type"],
                     applied_rate=c["applied_rate"],
-                    calculated_amount=c["amount"]
+                    calculated_amount=c["amount"],
+                    sessions_present=c.get("sessions_present", 0),
+                    sessions_late=c.get("sessions_late", 0),
+                    sessions_absent=c.get("sessions_absent", 0),
+                    fixed_present_salary=c.get("fixed_present_salary", 0),
+                    fixed_late_salary=c.get("fixed_late_salary", 0),
+                    fixed_absent_salary=c.get("fixed_absent_salary", 0)
                 ))
                 
             records.append(TemporaryPayrollRecord(

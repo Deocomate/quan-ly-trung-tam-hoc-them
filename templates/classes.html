@@ -20,6 +20,7 @@
       <thead>
         <tr>
           <th class="font-bold text-slate-700">Tên lớp</th>
+          <th class="font-bold text-slate-700">Niên khóa</th>
           <th class="font-bold text-slate-700">Môn học</th>
           <th class="font-bold text-slate-700">Giáo viên</th>
           <th class="font-bold text-slate-700">Học phí/buổi (VNĐ)</th>
@@ -34,10 +35,10 @@
 </section>
 
 <div id="classModal" class="modal-backdrop hidden">
-  <form id="classForm" class="modal panel p-6 max-w-2xl bg-white rounded-xl shadow-lg border border-slate-200">
+  <form id="classForm" class="modal panel p-6 max-w-3xl bg-white rounded-xl shadow-lg border border-slate-200">
     <h3 id="classFormTitle" class="text-xl font-extrabold text-slate-800 border-b border-slate-100 pb-3">Thêm lớp/môn</h3>
     <input type="hidden" name="id" />
-    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+    <div class="mt-4 grid gap-4 sm:grid-cols-3">
       <div>
         <label class="label text-slate-700 font-semibold mb-1 block">Tên lớp</label>
         <input class="field rounded-lg border-slate-200" name="name" placeholder="Ví dụ: Lớp A1" required />
@@ -47,17 +48,23 @@
         <input class="field rounded-lg border-slate-200" name="subject" placeholder="Ví dụ: Toán" required />
       </div>
       <div>
+        <label class="label text-slate-700 font-semibold mb-1 block">Niên khóa</label>
+        <select class="field rounded-lg border-slate-200 w-full" name="school_year" id="schoolYearSelect" required>
+          <!-- Sẽ được điền động bằng JS -->
+        </select>
+      </div>
+      <div>
         <label class="label text-slate-700 font-semibold mb-1 block">Học phí/buổi (VNĐ)</label>
         <input class="field rounded-lg border-slate-200" name="default_fee" data-number="true" type="number" min="0" placeholder="Ví dụ: 150000" required />
       </div>
-      <div class="flex items-center sm:pt-6">
+      <div class="flex items-center sm:pt-6 sm:col-span-2">
         <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 py-1 cursor-pointer">
           <input name="is_active" type="checkbox" checked class="rounded text-teal-600 focus:ring-teal-500" /> Đang hoạt động
         </label>
       </div>
       
       <!-- Cấu hình Giáo viên & Lương (Nhiều giáo viên) -->
-      <div class="sm:col-span-2 border-t border-slate-100 pt-4 mt-2">
+      <div class="sm:col-span-3 border-t border-slate-100 pt-4 mt-2">
         <div class="flex justify-between items-center mb-3">
           <label class="label text-slate-700 font-extrabold block text-sm">Giáo viên & Cấu hình Lương</label>
           <button type="button" class="btn btn-muted !py-1 !px-2.5 text-xs font-semibold" onclick="addTeacherAssignmentRow()">
@@ -71,7 +78,7 @@
         </div>
       </div>
 
-      <div class="sm:col-span-2">
+      <div class="sm:col-span-3">
         <label class="label text-slate-700 font-semibold mb-1 block">Ghi chú thêm</label>
         <textarea class="field rounded-lg border-slate-200 h-20" name="notes" placeholder="Nhập ghi chú chi tiết..."></textarea>
       </div>
@@ -90,6 +97,37 @@
   let teachers = [];
   let dataTableInstance = null;
 
+  function getCurrentSchoolYear() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    return month >= 8 ? `${year} - ${year + 1}` : `${year - 1} - ${year}`;
+  }
+
+  function populateSchoolYearOptions() {
+    const selectEl = document.getElementById("schoolYearSelect");
+    if (!selectEl) return;
+    
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    
+    const defaultSy = getCurrentSchoolYear();
+    selectEl.innerHTML = "";
+    
+    // Gợi ý từ năm hiện tại - 2 đến năm hiện tại + 2
+    for (let y = currentYear - 2; y <= currentYear + 2; y++) {
+      const syOption = `${y} - ${y + 1}`;
+      const opt = document.createElement("option");
+      opt.value = syOption;
+      opt.textContent = syOption;
+      if (syOption === defaultSy) {
+        opt.selected = true;
+      }
+      selectEl.appendChild(opt);
+    }
+  }
+
   function addTeacherAssignmentRow(assignment = null) {
     const container = document.getElementById("teacherAssignmentsContainer");
     const rowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -100,7 +138,7 @@
     const options = teachers.map(t => `<option value="${t.id}">${t.full_name}</option>`).join("");
 
     row.innerHTML = `
-      <div class="col-span-4">
+      <div class="col-span-3">
         <label class="text-[11px] font-bold text-slate-500 mb-0.5 block">Giáo viên</label>
         <select class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-teacher" required>
           <option value="">-- Chọn giáo viên --</option>
@@ -114,7 +152,14 @@
           <option value="assistant">Phụ</option>
         </select>
       </div>
-      <div class="col-span-3">
+      <div class="col-span-2">
+        <label class="text-[11px] font-bold text-slate-500 mb-0.5 block">Trạng thái</label>
+        <select class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-status">
+          <option value="true">Đang dạy</option>
+          <option value="false">Ngừng dạy</option>
+        </select>
+      </div>
+      <div class="col-span-2">
         <label class="text-[11px] font-bold text-slate-500 mb-0.5 block">Hình thức</label>
         <select class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-salary-type" onchange="onRowSalaryTypeChange(this)">
           <option value="fixed">Lương cứng</option>
@@ -123,14 +168,38 @@
       </div>
       <div class="col-span-2">
         <label class="text-[11px] font-bold text-slate-500 mb-0.5 block rate-label">Mức (đ)</label>
-        <input type="number" step="any" min="0" class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-rate" required />
+        <div class="flex items-center gap-1">
+          <input type="number" step="any" min="0" class="field !py-1 !px-2 text-sm rounded-lg border-slate-200 w-full assignment-rate" required oninput="onMainRateInput(this)" />
+          <button type="button" class="btn-advanced-salary p-1 text-slate-400 hover:text-teal-600 transition" title="Cấu hình nâng cao" onclick="toggleAdvancedSalary('${rowId}')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="col-span-1 text-center pt-4">
-        <button type="button" class="text-rose-500 hover:text-rose-700 transition" onclick="removeTeacherAssignmentRow('${rowId}')">
+        <button type="button" class="text-rose-500 hover:text-rose-700 transition btn-delete-assignment" onclick="removeTeacherAssignmentRow('${rowId}')">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>
+      </div>
+      
+      <!-- Cấu hình nâng cao Collapsible -->
+      <div class="col-span-12 hidden mt-2 border-t border-slate-100 pt-2 grid grid-cols-3 gap-2 advanced-salary-panel">
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 mb-0.5 block">Đủ (đ)</label>
+          <input type="number" min="0" class="field !py-1 !px-2 text-xs rounded-lg border-slate-200 w-full assignment-present-salary" required />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 mb-0.5 block">Muộn (đ)</label>
+          <input type="number" min="0" class="field !py-1 !px-2 text-xs rounded-lg border-slate-200 w-full assignment-late-salary" required />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 mb-0.5 block">Vắng (đ)</label>
+          <input type="number" min="0" class="field !py-1 !px-2 text-xs rounded-lg border-slate-200 w-full assignment-absent-salary" required />
+        </div>
       </div>
     `;
 
@@ -140,6 +209,7 @@
       row.querySelector(".assignment-teacher").value = assignment.teacher_id;
       row.querySelector(".assignment-role").value = assignment.role;
       row.querySelector(".assignment-salary-type").value = assignment.salary_type;
+      row.querySelector(".assignment-status").value = assignment.is_active.toString();
       
       const rateInput = row.querySelector(".assignment-rate");
       if (assignment.salary_type === "fixed") {
@@ -147,9 +217,31 @@
       } else {
         rateInput.value = assignment.salary_coefficient;
       }
+
+      // Điền các trường cấu hình lương nâng cao
+      row.querySelector(".assignment-present-salary").value = assignment.fixed_present_salary !== undefined ? assignment.fixed_present_salary : (assignment.fixed_salary_per_session || 450000);
+      row.querySelector(".assignment-late-salary").value = assignment.fixed_late_salary !== undefined ? assignment.fixed_late_salary : Math.round((assignment.fixed_salary_per_session || 450000) * 0.7);
+      row.querySelector(".assignment-absent-salary").value = assignment.fixed_absent_salary !== undefined ? assignment.fixed_absent_salary : 0;
+      
       onRowSalaryTypeChange(row.querySelector(".assignment-salary-type"));
+
+      // Nếu giáo viên đã có dữ liệu giảng dạy, khóa việc đổi tên và xóa phân công này
+      if (assignment.has_attendance) {
+        row.querySelector(".assignment-teacher").disabled = true;
+        const deleteBtn = row.querySelector(".btn-delete-assignment");
+        if (deleteBtn) {
+          deleteBtn.disabled = true;
+          deleteBtn.removeAttribute("onclick");
+          deleteBtn.classList.remove("text-rose-500", "hover:text-rose-700");
+          deleteBtn.classList.add("text-slate-300", "cursor-not-allowed");
+          deleteBtn.setAttribute("title", "Giáo viên đã có dữ liệu giảng dạy, không thể xóa.");
+        }
+      }
     } else {
       row.querySelector(".assignment-rate").value = "450000";
+      row.querySelector(".assignment-present-salary").value = "450000";
+      row.querySelector(".assignment-late-salary").value = "315000";
+      row.querySelector(".assignment-absent-salary").value = "0";
     }
   }
 
@@ -160,19 +252,57 @@
     }
   }
 
+  function onMainRateInput(inputEl) {
+    const row = inputEl.closest('.grid');
+    const salaryTypeSelect = row.querySelector(".assignment-salary-type");
+    if (salaryTypeSelect.value === 'fixed') {
+      const val = parseInt(inputEl.value) || 0;
+      row.querySelector(".assignment-present-salary").value = val;
+      row.querySelector(".assignment-late-salary").value = Math.round(val * 0.7);
+      row.querySelector(".assignment-absent-salary").value = 0;
+    }
+  }
+
+  function toggleAdvancedSalary(rowId) {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+
+    const salaryTypeSelect = row.querySelector(".assignment-salary-type");
+    if (salaryTypeSelect.value !== 'fixed') {
+      toast("Chỉ cấu hình lương nâng cao cho hình thức Lương cứng.", true);
+      return;
+    }
+
+    const panel = row.querySelector(".advanced-salary-panel");
+    if (panel) {
+      panel.classList.toggle("hidden");
+    }
+  }
+
   function onRowSalaryTypeChange(selectEl) {
     const row = selectEl.closest('.grid');
     const rateInput = row.querySelector('.assignment-rate');
     const rateLabel = row.querySelector('.rate-label');
+    const gearBtn = row.querySelector('.btn-advanced-salary');
+    const panel = row.querySelector('.advanced-salary-panel');
+    
     if (selectEl.value === 'fixed') {
       rateLabel.textContent = 'Mức (đ)';
       rateInput.placeholder = '450000';
+      if (gearBtn) gearBtn.classList.remove('hidden');
       if (!rateInput.value || rateInput.value === '1' || rateInput.value === '1.0' || parseFloat(rateInput.value) <= 10) {
         rateInput.value = '450000';
       }
+      
+      const val = parseInt(rateInput.value) || 0;
+      row.querySelector(".assignment-present-salary").value = val;
+      row.querySelector(".assignment-late-salary").value = Math.round(val * 0.7);
+      row.querySelector(".assignment-absent-salary").value = 0;
     } else {
       rateLabel.textContent = 'Hệ số';
       rateInput.placeholder = '1.0';
+      if (gearBtn) gearBtn.classList.add('hidden');
+      if (panel) panel.classList.add('hidden');
       if (!rateInput.value || rateInput.value === '450000' || parseFloat(rateInput.value) > 10) {
         rateInput.value = '1.0';
       }
@@ -185,6 +315,7 @@
     form.elements.id.value = item?.id || "";
     form.elements.name.value = item?.name || "";
     form.elements.subject.value = item?.subject || "";
+    form.elements.school_year.value = item?.school_year || getCurrentSchoolYear();
     form.elements.default_fee.value = item?.default_fee || 0;
     form.elements.notes.value = item?.notes || "";
     form.elements.is_active.checked = item ? item.is_active : true;
@@ -200,7 +331,12 @@
         role: "main",
         salary_type: item.salary_type || "fixed",
         fixed_salary_per_session: item.fixed_salary_per_session || 450000,
-        salary_coefficient: item.salary_coefficient || 1.0
+        salary_coefficient: item.salary_coefficient || 1.0,
+        fixed_present_salary: item.fixed_present_salary !== undefined ? item.fixed_present_salary : (item.fixed_salary_per_session || 450000),
+        fixed_late_salary: item.fixed_late_salary !== undefined ? item.fixed_late_salary : Math.round((item.fixed_salary_per_session || 450000) * 0.7),
+        fixed_absent_salary: item.fixed_absent_salary !== undefined ? item.fixed_absent_salary : 0,
+        is_active: true,
+        has_attendance: false
       });
     } else {
       addTeacherAssignmentRow();
@@ -230,9 +366,17 @@
           const roleBadge = ass.role === "main" 
             ? `<span class="px-1.5 py-0.5 text-[10px] font-bold bg-teal-50 text-teal-700 rounded border border-teal-200 ml-1">Chính</span>`
             : `<span class="px-1.5 py-0.5 text-[10px] font-bold bg-slate-50 text-slate-600 rounded border border-slate-200 ml-1">Phụ</span>`;
+          
+          const statusBadge = ass.is_active 
+            ? "" 
+            : `<span class="px-1.5 py-0.5 text-[10px] font-bold bg-rose-50 text-rose-700 rounded border border-rose-200 ml-1">Ngừng dạy</span>`;
+
           return `<div class="flex items-center justify-between mb-1 py-0.5">
-            <span class="font-medium text-slate-700">${tName}</span>
-            ${roleBadge}
+            <span class="font-medium ${ass.is_active ? 'text-slate-700' : 'text-slate-400 line-through'}">${tName}</span>
+            <div class="flex items-center gap-1">
+              ${statusBadge}
+              ${roleBadge}
+            </div>
           </div>`;
         }).join("");
       } else {
@@ -250,10 +394,19 @@
         salaryDisplay = item.assignments.map(ass => {
           const t = teachers.find(x => x.id === ass.teacher_id);
           const tName = t ? t.full_name.split(" ").slice(-1)[0] : `GV`;
-          const salStr = ass.salary_type === "fixed"
-            ? `${formatMoney(ass.fixed_salary_per_session)}`
-            : `Doanh thu (HS: ${ass.salary_coefficient})`;
-          return `<div class="text-xs text-slate-600 mb-1">
+          let salStr = "";
+          if (ass.salary_type === "fixed") {
+            if (ass.fixed_present_salary === ass.fixed_salary_per_session && 
+                ass.fixed_late_salary === Math.round(ass.fixed_salary_per_session * 0.7) && 
+                ass.fixed_absent_salary === 0) {
+              salStr = `${formatMoney(ass.fixed_salary_per_session)}`;
+            } else {
+              salStr = `Đủ: ${formatMoney(ass.fixed_present_salary)} / Trễ: ${formatMoney(ass.fixed_late_salary)} / Vắng: ${formatMoney(ass.fixed_absent_salary)}`;
+            }
+          } else {
+            salStr = `Doanh thu (HS: ${ass.salary_coefficient})`;
+          }
+          return `<div class="text-xs text-slate-600 mb-1 ${ass.is_active ? '' : 'line-through text-slate-400'}">
             <span class="font-semibold">${tName}:</span> ${salStr}
           </div>`;
         }).join("");
@@ -267,6 +420,7 @@
       return `
         <tr>
           <td class="font-bold text-teal-800">${item.name}</td>
+          <td class="font-semibold text-slate-600">${item.school_year || "-"}</td>
           <td class="font-semibold text-slate-800">${item.subject}</td>
           <td>${teachersDisplay}</td>
           <td class="font-bold text-slate-700">${formatMoney(item.default_fee)}</td>
@@ -313,20 +467,31 @@
     const container = document.getElementById("teacherAssignmentsContainer");
     const rows = container.querySelectorAll(".grid");
     rows.forEach(row => {
-      const teacherIdVal = row.querySelector(".assignment-teacher").value;
+      // Vì dropdown teacher có thể bị disable (nếu has_attendance), ta cần đọc cả từ trường disabled hoặc lấy giá trị lưu trữ
+      const teacherSelect = row.querySelector(".assignment-teacher");
+      const teacherIdVal = teacherSelect.value;
       if (!teacherIdVal) return;
 
       const teacher_id = parseInt(teacherIdVal);
       const role = row.querySelector(".assignment-role").value;
       const salary_type = row.querySelector(".assignment-salary-type").value;
       const rate = parseFloat(row.querySelector(".assignment-rate").value) || 0;
+      const is_active = row.querySelector(".assignment-status").value === "true";
+      
+      const fixed_present_salary = parseInt(row.querySelector(".assignment-present-salary").value) || 0;
+      const fixed_late_salary = parseInt(row.querySelector(".assignment-late-salary").value) || 0;
+      const fixed_absent_salary = parseInt(row.querySelector(".assignment-absent-salary").value) || 0;
 
       const ass = {
         teacher_id,
         role,
         salary_type,
         fixed_salary_per_session: salary_type === "fixed" ? Math.round(rate) : 450000,
-        salary_coefficient: salary_type === "coefficient" ? rate : 1.0
+        salary_coefficient: salary_type === "coefficient" ? rate : 1.0,
+        is_active,
+        fixed_present_salary,
+        fixed_late_salary,
+        fixed_absent_salary
       };
       assignments.push(ass);
     });
@@ -339,10 +504,16 @@
       data.salary_type = mainAss.salary_type;
       data.fixed_salary_per_session = mainAss.fixed_salary_per_session;
       data.salary_coefficient = mainAss.salary_coefficient;
+      data.fixed_present_salary = mainAss.fixed_present_salary;
+      data.fixed_late_salary = mainAss.fixed_late_salary;
+      data.fixed_absent_salary = mainAss.fixed_absent_salary;
     } else {
       data.teacher_id = null;
       data.salary_type = "fixed";
       data.fixed_salary_per_session = 450000;
+      data.fixed_present_salary = 450000;
+      data.fixed_late_salary = 315000;
+      data.fixed_absent_salary = 0;
       data.salary_coefficient = 1.0;
     }
 
@@ -368,6 +539,7 @@
   }
 
   async function init() {
+    populateSchoolYearOptions();
     await loadTeachers();
     await loadClasses();
   }

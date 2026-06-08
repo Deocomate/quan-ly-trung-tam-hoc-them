@@ -22,6 +22,9 @@ DEFAULT_SETTINGS = {
     "center_email": "",
     "center_zalo": "",
     "receipt_logo_display": "both",
+    "vietqr_bank_id": "",
+    "vietqr_account_no": "",
+    "vietqr_account_name": "",
 }
 
 
