@@ -262,6 +262,34 @@
     yearInput.addEventListener("change", fetchGrid);
   }
 
+  function sortVietnameseNames(list, keyExtractor) {
+    return list.sort((a, b) => {
+      const nameA = (keyExtractor(a) || "").trim();
+      const nameB = (keyExtractor(b) || "").trim();
+      if (!nameA && !nameB) return 0;
+      if (!nameA) return 1;
+      if (!nameB) return -1;
+      
+      const partsA = nameA.split(/\s+/);
+      const partsB = nameB.split(/\s+/);
+      
+      const firstA = partsA[partsA.length - 1];
+      const firstB = partsB[partsB.length - 1];
+      
+      let cmp = firstA.localeCompare(firstB, 'vi', { sensitivity: 'accent' });
+      if (cmp !== 0) return cmp;
+      
+      const lastA = partsA[0] || "";
+      const lastB = partsB[0] || "";
+      cmp = lastA.localeCompare(lastB, 'vi', { sensitivity: 'accent' });
+      if (cmp !== 0) return cmp;
+      
+      const middleA = partsA.slice(1, -1).join(" ");
+      const middleB = partsB.slice(1, -1).join(" ");
+      return middleA.localeCompare(middleB, 'vi', { sensitivity: 'accent' });
+    });
+  }
+
   async function fetchGrid() {
     const classId = document.getElementById("attendanceClass").value;
     const month = document.getElementById("attendanceMonth").value;
@@ -279,10 +307,12 @@
         const data = await api(`/api/attendance/month?class_id=${classId}&month=${month}&year=${year}`);
         isLocked = data.is_locked;
         document.getElementById("lockedNotice").classList.toggle("hidden", !isLocked);
+        sortVietnameseNames(data.students, s => s.full_name);
         renderStudentGrid(data.students, month, year, classId);
       } else {
         const data = await api(`/api/teacher-attendance/month?class_id=${classId}&month=${month}&year=${year}`);
         document.getElementById("lockedNotice").classList.add("hidden");
+        sortVietnameseNames(data.teachers, t => t.full_name);
         renderTeacherGrid(data.teachers, month, year, classId);
       }
     } catch (err) {
