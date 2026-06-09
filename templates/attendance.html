@@ -128,7 +128,7 @@
     </div>
   </div>
 
-  <div class="mt-5 grid gap-4 sm:grid-cols-3">
+  <div class="mt-5 grid gap-4 sm:grid-cols-4">
     <div>
       <label class="label text-slate-700 font-semibold mb-1">Lớp/Môn học</label>
       <select id="attendanceClass" class="field w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"></select>
@@ -140,6 +140,15 @@
     <div>
       <label class="label text-slate-700 font-semibold mb-1">Năm</label>
       <input id="attendanceYear" class="field w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500" type="number" min="2000" />
+    </div>
+    <div>
+      <label class="label text-slate-700 font-semibold mb-1">Sắp xếp</label>
+      <select id="attendanceSort" class="field w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
+        <option value="name-asc">Tên A-Z</option>
+        <option value="name-desc">Tên Z-A</option>
+        <option value="sessions-desc">Số buổi nhiều -&gt; ít</option>
+        <option value="sessions-asc">Số buổi ít -&gt; nhiều</option>
+      </select>
     </div>
   </div>
 
@@ -167,6 +176,8 @@
   let currentYear = {{ today.year }};
   let currentMonth = {{ today.month }};
   let currentTab = "student";
+  let currentGridData = [];
+  let currentGridMeta = null;
 
   function getDaysInMonth(month, year) {
     return new Date(year, month, 0).getDate();
@@ -249,45 +260,102 @@
   function initFilters() {
     const monthInput = document.getElementById("attendanceMonth");
     const yearInput = document.getElementById("attendanceYear");
+    const sortSelect = document.getElementById("attendanceSort");
     
     const savedMonth = localStorage.getItem("lastAttendanceMonth");
     const savedYear = localStorage.getItem("lastAttendanceYear");
+    const savedSort = localStorage.getItem("lastAttendanceSort");
     
     monthInput.value = savedMonth ? savedMonth : currentMonth;
     yearInput.value = savedYear ? savedYear : currentYear;
+    if (savedSort && Array.from(sortSelect.options).some(option => option.value === savedSort)) {
+      sortSelect.value = savedSort;
+    }
 
     // Lắng nghe sự kiện thay đổi để load lại Grid
     $("#attendanceClass").on("change", fetchGrid);
     monthInput.addEventListener("change", fetchGrid);
     yearInput.addEventListener("change", fetchGrid);
+    sortSelect.addEventListener("change", () => {
+      localStorage.setItem("lastAttendanceSort", sortSelect.value);
+      renderCurrentGrid();
+    });
   }
 
-  function sortVietnameseNames(list, keyExtractor) {
+  function compareVietnameseNames(a, b, keyExtractor, direction = "asc") {
+    const nameA = (keyExtractor(a) || "").trim();
+    const nameB = (keyExtractor(b) || "").trim();
+    if (!nameA && !nameB) return 0;
+    if (!nameA) return 1;
+    if (!nameB) return -1;
+
+    const partsA = nameA.split(/\s+/);
+    const partsB = nameB.split(/\s+/);
+
+    const firstA = partsA[partsA.length - 1];
+    const firstB = partsB[partsB.length - 1];
+
+    let cmp = firstA.localeCompare(firstB, 'vi', { sensitivity: 'accent' });
+    if (cmp !== 0) return direction === "desc" ? -cmp : cmp;
+
+    const lastA = partsA[0] || "";
+    const lastB = partsB[0] || "";
+    cmp = lastA.localeCompare(lastB, 'vi', { sensitivity: 'accent' });
+    if (cmp !== 0) return direction === "desc" ? -cmp : cmp;
+
+    const middleA = partsA.slice(1, -1).join(" ");
+    const middleB = partsB.slice(1, -1).join(" ");
+    cmp = middleA.localeCompare(middleB, 'vi', { sensitivity: 'accent' });
+    return direction === "desc" ? -cmp : cmp;
+  }
+
+  function getAttendanceSortMode() {
+    return document.getElementById("attendanceSort")?.value || "name-asc";
+  }
+
+  function getAttendanceSessionCount(item) {
+    return Object.values(item.attendance || {}).filter(status => status === "P" || status === "M").length;
+  }
+
+  function sortAttendanceItems(list, keyExtractor) {
+    const sortMode = getAttendanceSortMode();
     return list.sort((a, b) => {
-      const nameA = (keyExtractor(a) || "").trim();
-      const nameB = (keyExtractor(b) || "").trim();
-      if (!nameA && !nameB) return 0;
-      if (!nameA) return 1;
-      if (!nameB) return -1;
-      
-      const partsA = nameA.split(/\s+/);
-      const partsB = nameB.split(/\s+/);
-      
-      const firstA = partsA[partsA.length - 1];
-      const firstB = partsB[partsB.length - 1];
-      
-      let cmp = firstA.localeCompare(firstB, 'vi', { sensitivity: 'accent' });
-      if (cmp !== 0) return cmp;
-      
-      const lastA = partsA[0] || "";
-      const lastB = partsB[0] || "";
-      cmp = lastA.localeCompare(lastB, 'vi', { sensitivity: 'accent' });
-      if (cmp !== 0) return cmp;
-      
-      const middleA = partsA.slice(1, -1).join(" ");
-      const middleB = partsB.slice(1, -1).join(" ");
-      return middleA.localeCompare(middleB, 'vi', { sensitivity: 'accent' });
+      if (sortMode === "sessions-desc" || sortMode === "sessions-asc") {
+        const diff = getAttendanceSessionCount(a) - getAttendanceSessionCount(b);
+        if (diff !== 0) return sortMode === "sessions-desc" ? -diff : diff;
+        return compareVietnameseNames(a, b, keyExtractor);
+      }
+
+      return compareVietnameseNames(a, b, keyExtractor, sortMode === "name-desc" ? "desc" : "asc");
     });
+  }
+
+  function renderCurrentGrid() {
+    if (!currentGridMeta) return;
+
+    const sortedItems = sortAttendanceItems([...currentGridData], item => item.full_name);
+    if (currentGridMeta.type === "student") {
+      renderStudentGrid(sortedItems, currentGridMeta.month, currentGridMeta.year, currentGridMeta.classId);
+    } else {
+      renderTeacherGrid(sortedItems, currentGridMeta.month, currentGridMeta.year, currentGridMeta.classId);
+    }
+  }
+
+  function updateCachedAttendance(idKey, id, dateStr, status) {
+    const item = currentGridData.find(row => row[idKey] === id);
+    if (!item) return;
+    item.attendance = item.attendance || {};
+    if (status) {
+      item.attendance[dateStr] = status;
+    } else {
+      delete item.attendance[dateStr];
+    }
+  }
+
+  function rerenderIfSessionSort() {
+    if (getAttendanceSortMode().startsWith("sessions-")) {
+      renderCurrentGrid();
+    }
   }
 
   async function fetchGrid() {
@@ -307,13 +375,15 @@
         const data = await api(`/api/attendance/month?class_id=${classId}&month=${month}&year=${year}`);
         isLocked = data.is_locked;
         document.getElementById("lockedNotice").classList.toggle("hidden", !isLocked);
-        sortVietnameseNames(data.students, s => s.full_name);
-        renderStudentGrid(data.students, month, year, classId);
+        currentGridData = data.students || [];
+        currentGridMeta = { type: "student", month, year, classId };
+        renderCurrentGrid();
       } else {
         const data = await api(`/api/teacher-attendance/month?class_id=${classId}&month=${month}&year=${year}`);
         document.getElementById("lockedNotice").classList.add("hidden");
-        sortVietnameseNames(data.teachers, t => t.full_name);
-        renderTeacherGrid(data.teachers, month, year, classId);
+        currentGridData = data.teachers || [];
+        currentGridMeta = { type: "teacher", month, year, classId };
+        renderCurrentGrid();
       }
     } catch (err) {
       toast(err.message, true);
@@ -383,6 +453,8 @@
           status: nextStatus
         })
       });
+      updateCachedAttendance("student_id", studentId, dateStr, nextStatus);
+      rerenderIfSessionSort();
     } catch (err) {
       toast("Lỗi khi lưu: " + err.message, true);
       checkbox.checked = !isChecked;
@@ -466,6 +538,8 @@
           status: nextStatus ? nextStatus : null
         })
       });
+      updateCachedAttendance("teacher_id", teacherId, dateStr, nextStatus);
+      rerenderIfSessionSort();
       
       element.setAttribute("data-status", nextStatus);
       element.className = `teacher-att-cell ${nextStatus ? 'teacher-att-' + nextStatus : 'teacher-att-empty'} text-center`;
