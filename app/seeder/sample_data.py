@@ -32,8 +32,8 @@ class SampleTeacher:
 
 # --- DỮ LIỆU THỰC TẾ ---
 SAMPLE_TEACHERS: tuple[SampleTeacher, ...] = (
-    SampleTeacher("ThS. Nguyễn Trường Giang", "0912888999", "giang.nt@hoatuyet.edu.vn", 1.0),
-    SampleTeacher("Cô Lê Cẩm Tú", "0987333555", "tu.lc@hoatuyet.edu.vn", 1.2),
+    SampleTeacher("ThS. Nguyễn Trường Giang", "0912888999", "giang.nt@example.edu.vn", 1.0),
+    SampleTeacher("Cô Lê Cẩm Tú", "0987333555", "tu.lc@example.edu.vn", 1.2),
 )
 
 SAMPLE_CLASSES: tuple[SampleClass, ...] = (

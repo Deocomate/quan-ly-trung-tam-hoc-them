@@ -823,7 +823,7 @@ def generate_revenue_report_pdf(db: Session, month: int | list[int], year: int, 
     story = []
 
     # Tên trung tâm ở góc trên bên trái
-    center_logo = settings.get("center_logo_text", "HH EDUCATION")
+    center_logo = settings.get("center_logo_text", "TRUNG TÂM\nGIÁO DỤC")
     story.append(Paragraph(f"<b>{center_logo.upper()}</b>", ParagraphStyle("logo", fontName=bold_font, fontSize=11, leading=14, textColor=colors.HexColor("#0F766E"))))
     story.append(Spacer(1, 4 * mm))
 

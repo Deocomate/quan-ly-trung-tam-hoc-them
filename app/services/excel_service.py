@@ -110,7 +110,7 @@ def generate_revenue_report_excel(db: Session, month: int | list[int], year: int
     )
 
     # 4. Phần đầu đề (Header báo cáo)
-    center_name = settings.get("center_name", "HH EDUCATION")
+    center_name = settings.get("center_name", "TRUNG TÂM GIÁO DỤC")
     ws["A1"] = center_name.upper()
     ws["A1"].font = Font(name=font_family, size=11, bold=True, color="0F766E")
     
@@ -260,6 +260,7 @@ def generate_class_attendance_excel(
     class_id: int,
     month: int,
     year: int,
+    settings: dict[str, str],
     session_days_str: str | None = None,
     fill_attendance: bool = False
 ) -> bytes:
@@ -312,7 +313,9 @@ def generate_class_attendance_excel(
         
     is_blank_sheet = len(session_dates) == 0
     num_cols = 10 if is_blank_sheet else len(session_dates)
-    
+    total_cols = 4 + num_cols + 1
+    col_letter_last = get_column_letter(total_cols)
+
     # 3. Khởi tạo workbook
     wb = Workbook()
     ws = wb.active
@@ -332,24 +335,20 @@ def generate_class_attendance_excel(
     center_align = Alignment(horizontal="center", vertical="center")
     left_align = Alignment(horizontal="left", vertical="center")
     
-    # Tiêu đề đơn vị
-    ws["A1"] = "UBND PHƯỜNG THANH XUÂN"
+    parent_org = (settings.get("center_parent_org") or "").strip()
+    ws["A1"] = parent_org.upper() if parent_org else ""
     ws["A1"].font = bold_style
-    ws["A2"] = "TT GIÁO DỤC HOA TUYẾT"
+    ws["A2"] = settings.get("center_name", "TRUNG TÂM GIÁO DỤC").upper()
     ws["A2"].font = bold_style
-    
-    # Tiêu đề chính
+
     ws["A3"] = f"DANH SÁCH HỌC SINH LỚP {cls.name.upper()}"
     ws["A3"].font = title_style
     ws["A3"].alignment = center_align
-    
+
     ws["A4"] = f"năm học {cls.school_year or '2025-2026'}"
     ws["A4"].font = subtitle_style
     ws["A4"].alignment = center_align
-    
-    # Merge tiêu đề
-    total_cols = 2 + num_cols + 1
-    col_letter_last = get_column_letter(total_cols)
+
     ws.merge_cells(f"A3:{col_letter_last}3")
     ws.merge_cells(f"A4:{col_letter_last}4")
     
@@ -368,18 +367,15 @@ def generate_class_attendance_excel(
     
     ws.row_dimensions[6].height = 25
     
-    ws["A6"] = "TT"
-    ws["A6"].font = bold_style
-    ws["A6"].alignment = center_align
-    ws["A6"].border = thin_border
-    
-    ws["B6"] = "Họ & tên"
-    ws["B6"].font = bold_style
-    ws["B6"].alignment = center_align
-    ws["B6"].border = thin_border
-    
+    headers = [("A6", "TT"), ("B6", "Mã học sinh"), ("C6", "Họ & tên"), ("D6", "Ngày sinh")]
+    for cell_ref, val in headers:
+        ws[cell_ref] = val
+        ws[cell_ref].font = bold_style
+        ws[cell_ref].alignment = center_align
+        ws[cell_ref].border = thin_border
+
     for i in range(num_cols):
-        col_idx = 3 + i
+        col_idx = 5 + i
         cell = ws.cell(row=6, column=col_idx)
         cell.font = bold_style
         cell.alignment = center_align
@@ -404,12 +400,23 @@ def generate_class_attendance_excel(
         c_stt.font = regular_style
         c_stt.alignment = center_align
         c_stt.border = thin_border
-        
-        c_name = ws.cell(row=current_row, column=2, value=student.full_name)
+
+        c_code = ws.cell(row=current_row, column=2, value=student.student_code)
+        c_code.font = regular_style
+        c_code.alignment = center_align
+        c_code.border = thin_border
+
+        c_name = ws.cell(row=current_row, column=3, value=student.full_name)
         c_name.font = regular_style
         c_name.alignment = left_align
         c_name.border = thin_border
-        
+
+        dob_str = student.date_of_birth.strftime("%d/%m/%Y") if student.date_of_birth else ""
+        c_dob = ws.cell(row=current_row, column=4, value=dob_str)
+        c_dob.font = regular_style
+        c_dob.alignment = center_align
+        c_dob.border = thin_border
+
         attendance_map = {}
         if fill_attendance and not is_blank_sheet:
             stmt_att = (
@@ -425,7 +432,7 @@ def generate_class_attendance_excel(
             
         present_count = 0
         for i in range(num_cols):
-            col_idx = 3 + i
+            col_idx = 5 + i
             cell = ws.cell(row=current_row, column=col_idx)
             cell.font = regular_style
             cell.alignment = center_align
@@ -458,9 +465,11 @@ def generate_class_attendance_excel(
         current_row += 1
         
     ws.column_dimensions["A"].width = 6
-    ws.column_dimensions["B"].width = 28
+    ws.column_dimensions["B"].width = 16
+    ws.column_dimensions["C"].width = 28
+    ws.column_dimensions["D"].width = 13
     for i in range(num_cols):
-        col_letter = get_column_letter(3 + i)
+        col_letter = get_column_letter(5 + i)
         ws.column_dimensions[col_letter].width = 8
     ws.column_dimensions[col_letter_last].width = 16
     

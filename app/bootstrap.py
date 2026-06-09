@@ -8,6 +8,7 @@ from app.database import BASE_DIR
 from app.models import Setting, User
 
 DEFAULT_SETTINGS = {
+    "center_parent_org": "",
     "center_logo_text": "HH\nEDUCATION",
     "center_name": "HỘ KINH DOANH TRUNG TÂM GIÁO DỤC HH",
     "center_address": "Số 15, ngõ 52/3 phố Quan Nhân, Trung Hoà, Cầu Giấy, Hà Nội",

@@ -7,6 +7,10 @@
       <p class="text-sm text-slate-500 mt-1">Cập nhật các thông tin cơ bản, pháp lý và liên hệ của trung tâm để phục vụ vận hành và in ấn.</p>
     </div>
     <form id="centerInfoForm" class="mt-5 grid gap-4 md:grid-cols-2">
+      <div class="md:col-span-2">
+        <label class="label text-slate-700 font-semibold mb-1 block">Đơn vị chủ quản (Hiển thị góc trái phía trên file Excel)</label>
+        <input class="field rounded-lg border-slate-200" name="center_parent_org" placeholder="VD: UBND PHƯỜNG THANH XUÂN" />
+      </div>
       <div>
         <label class="label text-slate-700 font-semibold mb-1 block">Tên trung tâm</label>
         <input class="field rounded-lg border-slate-200" name="center_name" required />
@@ -43,6 +47,7 @@
 {% block scripts %}
 <script>
   const fieldNames = [
+    "center_parent_org",
     "center_name",
     "center_hotline",
     "center_phone",

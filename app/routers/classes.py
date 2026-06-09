@@ -262,17 +262,20 @@ def export_class_attendance(
     db: Session = Depends(get_db)
 ):
     from app.services.excel_service import generate_class_attendance_excel
+    from app.services.settings_service import get_settings_map
     from urllib.parse import quote
-    
+
+    settings = get_settings_map(db)
     cls = db.get(Class, class_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Không tìm thấy lớp học.")
-        
+
     excel_data = generate_class_attendance_excel(
         db=db,
         class_id=class_id,
         month=month,
         year=year,
+        settings=settings,
         session_days_str=session_days,
         fill_attendance=fill_attendance
     )
