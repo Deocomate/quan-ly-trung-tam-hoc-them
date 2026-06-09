@@ -38,6 +38,11 @@ def cleanup_test_data() -> None:
             db.execute(delete(Attendance).where(Attendance.class_id == test_class.id))
             db.execute(delete(Enrollment).where(Enrollment.class_id == test_class.id))
             db.delete(test_class)
+        test_class2 = db.scalar(select(Class).where(Class.name == "Tiếng Anh A1-B1"))
+        if test_class2:
+            db.execute(delete(Attendance).where(Attendance.class_id == test_class2.id))
+            db.execute(delete(Enrollment).where(Enrollment.class_id == test_class2.id))
+            db.delete(test_class2)
         db.execute(delete(TuitionPeriod).where(TuitionPeriod.month == 12, TuitionPeriod.year == 2099))
         db.commit()
 
@@ -210,3 +215,19 @@ def test_admin_seed_and_tuition_flow() -> None:
         records_updated = client.get("/api/tuition/records?month=12&year=2099").json()
         record_updated = next(r for r in records_updated if r["student_code"] == "TEST209912")
         assert record_updated["items"][0]["notes"] == "Đã thu tiền muộn"
+
+
+def test_export_attendance_unicode() -> None:
+    with TestClient(app) as client:
+        login(client)
+        klass = client.post(
+            "/api/classes",
+            json={"name": "Tiếng Anh A1-B1", "subject": "TIẾNG ANH", "default_fee": 150000, "notes": "", "is_active": True},
+        ).json()
+        
+        response = client.get(f"/api/classes/{klass['id']}/export-attendance?month=12&year=2099")
+        assert response.status_code == 200
+        assert response.headers["Content-Type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        assert "Content-Disposition" in response.headers
+        content_disposition = response.headers["Content-Disposition"]
+        assert "filename*=utf-8''chuyen-can-Ti%E1%BA%BFng_Anh_A1-B1-12-2099.xlsx" in content_disposition

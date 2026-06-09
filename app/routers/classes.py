@@ -262,6 +262,7 @@ def export_class_attendance(
     db: Session = Depends(get_db)
 ):
     from app.services.excel_service import generate_class_attendance_excel
+    from urllib.parse import quote
     
     cls = db.get(Class, class_id)
     if not cls:
@@ -276,9 +277,11 @@ def export_class_attendance(
         fill_attendance=fill_attendance
     )
     
-    filename = f"chuyen-can-{cls.name.replace(' ', '_')}-{month:02d}-{year}.xlsx"
+    raw_filename = f"chuyen-can-{cls.name.replace(' ', '_')}-{month:02d}-{year}.xlsx"
+    encoded_filename = quote(raw_filename)
+    
     return Response(
         content=excel_data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=utf-8''{encoded_filename}"},
     )
