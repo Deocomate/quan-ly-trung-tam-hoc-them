@@ -26,6 +26,7 @@ DEFAULT_SETTINGS = {
     "vietqr_bank_id": "",
     "vietqr_account_no": "",
     "vietqr_account_name": "",
+    "student_code_template_json": '[{"type": "YEAR", "value": "YYYY"}, {"type": "TEXT", "value": "HS"}, {"type": "SEQ", "value": "6", "reset": "yearly"}]',
 }
 
 

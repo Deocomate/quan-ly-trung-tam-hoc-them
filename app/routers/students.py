@@ -83,19 +83,14 @@ def list_students(q: str | None = None, active: bool | None = None, db: Session 
 
 @router.post("", response_model=StudentOut)
 def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
-    from app.timezone import today_vietnam
-    from sqlalchemy import func
-
-    current_year = today_vietnam().year
+    from app.services.settings_service import get_settings_map
+    from app.services.student_code_service import generate_custom_student_code
 
     data = payload.model_dump()
     if not data.get("student_code") or not data["student_code"].strip():
-        count = db.scalar(
-            select(func.count(Student.id)).where(
-                func.strftime("%Y", Student.created_at) == str(current_year)
-            )
-        ) or 0
-        data["student_code"] = f"{current_year}HS{count + 1:06d}"
+        settings = get_settings_map(db)
+        template_json = settings.get("student_code_template_json", "")
+        data["student_code"] = generate_custom_student_code(db, template_json)
     else:
         data["student_code"] = data["student_code"].strip()
 

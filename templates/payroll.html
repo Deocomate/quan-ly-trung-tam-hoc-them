@@ -270,7 +270,7 @@
     let totalSalarySum = 0;
 
     if (records.length === 0) {
-      rows.innerHTML = `<tr><td colspan="7" class="text-slate-500 py-8 text-center font-semibold">Không có dữ liệu phù hợp.</td></tr>`;
+      rows.innerHTML = "";
       document.getElementById("totalClasses").textContent = "-";
       document.getElementById("totalSessions").textContent = "-";
       document.getElementById("totalRevenue").textContent = "-";
