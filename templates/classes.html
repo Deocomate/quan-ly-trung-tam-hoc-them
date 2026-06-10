@@ -535,10 +535,14 @@
 
     const assignments = [];
     const container = document.getElementById("teacherAssignmentsContainer");
-    const rows = container.querySelectorAll(".grid");
+    // Sử dụng Array.from(container.children) để chỉ lấy các dòng cấp 1 trực tiếp
+    const rows = Array.from(container.children);
     rows.forEach(row => {
       // Vì dropdown teacher có thể bị disable (nếu has_attendance), ta cần đọc cả từ trường disabled hoặc lấy giá trị lưu trữ
       const teacherSelect = row.querySelector(".assignment-teacher");
+      // Kiểm tra an toàn phòng trường hợp phần tử null
+      if (!teacherSelect) return; 
+      
       const teacherIdVal = teacherSelect.value;
       if (!teacherIdVal) return;
 

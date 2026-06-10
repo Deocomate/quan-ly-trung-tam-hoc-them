@@ -66,13 +66,13 @@
       <tbody id="payrollRows"></tbody>
       <tfoot>
         <tr class="bg-slate-50 font-bold text-slate-800 border-t-2 border-slate-200">
-          <td>TỔNG CỘNG</td>
-          <td id="totalClasses" class="text-center">-</td>
-          <td id="totalSessions" class="text-center">-</td>
-          <td id="totalRevenue" class="text-right">-</td>
-          <td id="totalSalary" class="text-right text-red-700 font-extrabold">-</td>
-          <td></td>
-          <td></td>
+          <td class="font-bold text-slate-800">TỔNG CỘNG</td>
+          <td id="totalClasses" class="text-center font-semibold text-slate-600">-</td>
+          <td id="totalSessions" class="text-center font-mono">-</td>
+          <td id="totalRevenue" class="text-right font-mono text-slate-700">-</td>
+          <td id="totalSalary" class="text-right font-mono font-extrabold text-red-700">-</td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
         </tr>
       </tfoot>
     </table>
@@ -207,6 +207,7 @@
   function filterAndRenderPayroll() {
     if (dataTableInstance) {
       dataTableInstance.destroy();
+      $("#payrollTable th, #payrollTable tfoot td").css("width", "");
       dataTableInstance = null;
     }
 
@@ -243,8 +244,22 @@
         emptyTable: "Không có dữ liệu chi trả lương trong kỳ hoặc bộ lọc không khớp."
       },
       pageLength: 10,
-      retrieve: true
+      lengthChange: false,
+      ordering: true,
+      info: false,
+      autoWidth: false,
+      columnDefs: [
+        { targets: 0, className: "dt-left align-middle" },
+        { targets: [1, 2], className: "dt-center align-middle" },
+        { targets: [3, 4], className: "dt-right align-middle" },
+        { targets: [5, 6], className: "dt-center align-middle" }
+      ],
+      drawCallback: function () {
+        this.api().columns.adjust();
+      }
     });
+
+    dataTableInstance.columns.adjust();
   }
 
   function renderPayrollTable(records) {
@@ -264,14 +279,16 @@
     }
 
     rows.innerHTML = records.map(p => {
-      const classesCount = p.classes.length;
-      const sessionsCount = p.classes.reduce((sum, c) => sum + c.sessions, 0);
-      const revenueSum = p.classes.reduce((sum, c) => sum + c.revenue, 0);
-      
+      const classesList = p.classes || p.items || [];
+      const classesCount = classesList.length;
+      const sessionsCount = classesList.reduce((sum, c) => sum + (c.sessions !== undefined ? c.sessions : (c.sessions_count || 0)), 0);
+      const revenueSum = classesList.reduce((sum, c) => sum + (c.revenue !== undefined ? c.revenue : (c.class_revenue || 0)), 0);
+      const totalSalary = p.total_salary !== undefined ? p.total_salary : (p.total_amount || 0);
+
       totalClassesCount += classesCount;
       totalSessionsCount += sessionsCount;
       totalRevenueSum += revenueSum;
-      totalSalarySum += p.total_salary;
+      totalSalarySum += totalSalary;
 
       let statusBadge = "";
       if (!isLocked) {
@@ -297,7 +314,7 @@
       let payBtn = "";
       if (isLocked && p.id) {
         const escName = p.teacher_name.replace(/'/g, "\\'");
-        payBtn = `<button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="openPaymentModal(${p.id}, '${escName}', ${p.total_salary}, ${p.paid_amount || 0}, ${p.prior_unpaid || 0}, ${p.grand_total || p.total_salary})">Thanh toán</button>`;
+        payBtn = `<button class="btn btn-primary !min-height-0 !py-1 !px-2.5 text-xs font-semibold" onclick="openPaymentModal(${p.id}, '${escName}', ${totalSalary}, ${p.paid_amount || 0}, ${p.prior_unpaid || 0}, ${p.grand_total || totalSalary})">Thanh toán</button>`;
       }
 
       return `
@@ -310,7 +327,7 @@
           <td class="text-center font-mono">${sessionsCount}</td>
           <td class="text-right font-mono text-slate-700">${formatMoney(revenueSum)}</td>
           <td class="text-right font-mono font-bold text-slate-800">
-            <div>${formatMoney(p.total_salary)}</div>
+            <div>${formatMoney(totalSalary)}</div>
             ${isLocked && p.prior_unpaid > 0 ? `<div class="text-[10px] text-teal-700 font-bold mt-0.5">Cộng: ${formatMoney(p.grand_total)}</div>` : ''}
           </td>
           <td class="text-center">${statusBadge}</td>
@@ -341,14 +358,18 @@
     document.getElementById("detailPeriod").textContent = `Tháng ${month}/${year}`;
 
     const rows = document.getElementById("detailRows");
-    rows.innerHTML = teacher.classes.map(c => {
+    const classesList = teacher.classes || teacher.items || [];
+    rows.innerHTML = classesList.map(c => {
+      const sessions = c.sessions !== undefined ? c.sessions : (c.sessions_count || 0);
+      const revenue = c.revenue !== undefined ? c.revenue : (c.class_revenue || 0);
+      const amount = c.amount !== undefined ? c.amount : (c.salary_amount || 0);
       const typeStr = c.salary_type === "fixed" ? "Lương cứng" : "Doanh thu";
-      const revStr = c.salary_type === "fixed" ? "-" : formatMoney(c.revenue);
-      
+      const revStr = c.salary_type === "fixed" ? "-" : formatMoney(revenue);
+
       let sessStr = "";
       let rateStr = "";
       if (c.salary_type === "fixed") {
-        sessStr = `${c.sessions} buổi<br><span class="text-[10px] text-slate-500 font-semibold">(Đủ: ${c.sessions_present || 0}, Trễ: ${c.sessions_late || 0}, Vắng: ${c.sessions_absent || 0})</span>`;
+        sessStr = `${sessions} buổi<br><span class="text-[10px] text-slate-500 font-semibold">(Đủ: ${c.sessions_present || 0}, Trễ: ${c.sessions_late || 0}, Vắng: ${c.sessions_absent || 0})</span>`;
         rateStr = `
           <div class="text-[11px] text-left leading-normal inline-block">
             <div>Đủ: ${formatMoney(c.fixed_present_salary || 0)}</div>
@@ -357,8 +378,8 @@
           </div>
         `;
       } else {
-        sessStr = `<span class="font-mono">${c.sessions}</span>`;
-        rateStr = `<span class="font-mono">${c.applied_rate.toFixed(2)}</span>`;
+        sessStr = `<span class="font-mono">${sessions}</span>`;
+        rateStr = `<span class="font-mono">${(c.applied_rate || 0).toFixed(2)}</span>`;
       }
 
       return `
@@ -368,7 +389,7 @@
           <td class="text-right font-mono">${revStr}</td>
           <td>${typeStr}</td>
           <td class="text-center">${rateStr}</td>
-          <td class="text-right font-mono font-bold text-slate-800">${formatMoney(c.amount)}</td>
+          <td class="text-right font-mono font-bold text-slate-800">${formatMoney(amount)}</td>
         </tr>
       `;
     }).join("");

@@ -104,6 +104,38 @@ def records(month: int | None = None, year: int | None = None, class_id: int | N
     return results
 
 
+@router.get("/records/{record_id}/png")
+def record_png(record_id: int, db: Session = Depends(get_db)):
+    """Tải về phiếu thu học phí cá nhân dưới định dạng hình ảnh PNG."""
+    record = db.get(TuitionRecord, record_id, options=[selectinload(TuitionRecord.student), selectinload(TuitionRecord.items)])
+    if not record:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiếu thu.")
+
+    pdf_bytes = receipt_to_pdf(record, get_settings_map(db))
+
+    try:
+        import fitz
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if len(doc) == 0:
+            raise HTTPException(status_code=500, detail="Không thể tạo dữ liệu hình ảnh.")
+
+        page = doc.load_page(0)
+        pix = page.get_pixmap(dpi=150)
+        png_bytes = pix.tobytes("png")
+
+        filename = f"phieu-thu-{record.student.student_code}-{record.month:02d}-{record.year}.png"
+        return Response(
+            content=png_bytes,
+            media_type="image/png",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Lỗi chuyển đổi hình ảnh: {str(exc)}") from exc
+
+
 @router.get("/records/{record_id}/pdf")
 def record_pdf(record_id: int, db: Session = Depends(get_db)):
     record = db.get(TuitionRecord, record_id, options=[selectinload(TuitionRecord.student), selectinload(TuitionRecord.items)])

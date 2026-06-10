@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import Attendance, Enrollment
+from app.models import Attendance, Enrollment, Student
 from app.schemas import AttendanceBulkSave
 from app.services.tuition_service import is_period_locked, sync_attendance_to_tuition
 from app.timezone import month_bounds
@@ -23,8 +23,13 @@ def get_attendance(class_id: int, date: str, db: Session = Depends(get_db)):
     target_date = parse_local_date(date)
     enrollments = db.scalars(
         select(Enrollment)
+        .join(Enrollment.student)
         .options(selectinload(Enrollment.student))
-        .where(Enrollment.class_id == class_id, Enrollment.is_active.is_(True))
+        .where(
+            Enrollment.class_id == class_id, 
+            Enrollment.is_active.is_(True),
+            Student.is_active.is_(True)
+        )
         .order_by(Enrollment.id)
     ).all()
     existing = {
@@ -101,8 +106,13 @@ def get_attendance_month(class_id: int, month: int, year: int, db: Session = Dep
     # 1. Lấy học sinh trong lớp
     enrollments = db.scalars(
         select(Enrollment)
+        .join(Enrollment.student)
         .options(selectinload(Enrollment.student))
-        .where(Enrollment.class_id == class_id, Enrollment.is_active.is_(True))
+        .where(
+            Enrollment.class_id == class_id, 
+            Enrollment.is_active.is_(True),
+            Student.is_active.is_(True)
+        )
         .order_by(Enrollment.id)
     ).all()
 

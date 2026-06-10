@@ -231,8 +231,10 @@ def list_records(db: Session, month: int | None = None, year: int | None = None,
         stmt = stmt.where(TuitionRecord.year == year)
     if class_id:
         stmt = stmt.join(TuitionRecord.items).where(TuitionRecordItem.class_id == class_id).distinct()
+    
+    stmt = stmt.join(TuitionRecord.student).where(Student.is_active.is_(True))
     stmt = stmt.order_by(TuitionRecord.year.desc(), TuitionRecord.month.desc(), Student.full_name)
-    return db.scalars(stmt.join(TuitionRecord.student)).all()
+    return db.scalars(stmt).all()
 
 
 def sync_class_fee_to_records(db: Session, class_id: int, new_fee: int):

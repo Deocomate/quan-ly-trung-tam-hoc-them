@@ -278,6 +278,10 @@
       const pdfBtnText = isLocked ? "Xuất PDF" : "Xuất PDF (Tạm)";
       const pdfBtn = `<a class="btn btn-muted !min-height-0 !py-1 !px-2.5 text-xs font-semibold" href="/api/tuition/export-pdf?month=${month}&year=${year}&student_id=${row.student_id}">${pdfBtnText}</a>`;
 
+      const pngBtn = (isLocked && row.id)
+        ? `<a class="btn btn-muted border border-slate-200 !min-height-0 !py-1 !px-2.5 text-xs text-teal-700 bg-teal-50 hover:bg-teal-100 font-semibold ml-1" href="/api/tuition/records/${row.id}/png">Tải ảnh PNG</a>`
+        : "";
+
       // Paid amount and remaining balance
       const paid = isLocked ? (row.paid_amount || 0) : 0;
       const total = row.total_amount || 0;
@@ -343,6 +347,7 @@
           <td>
             <div class="flex items-center">
               ${pdfBtn}
+              ${pngBtn}
               ${payBtn}
             </div>
           </td>

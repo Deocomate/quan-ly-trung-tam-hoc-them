@@ -11,4 +11,5 @@ httpx==0.28.1
 tzdata==2025.2
 reportlab==4.2.5
 openpyxl==3.1.5
+pymupdf==1.24.5
 

@@ -367,6 +367,52 @@ table.dataTable {
   border-collapse: collapse !important;
   width: 100% !important;
 }
+
+#payrollTable.dataTable {
+  table-layout: fixed;
+}
+
+#payrollTable.dataTable thead th,
+#payrollTable.dataTable tbody td,
+#payrollTable.dataTable tfoot td {
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+#payrollTable.dataTable thead th:nth-child(1),
+#payrollTable.dataTable tfoot td:nth-child(1) {
+  width: 18%;
+}
+
+#payrollTable.dataTable thead th:nth-child(2),
+#payrollTable.dataTable tfoot td:nth-child(2) {
+  width: 8%;
+}
+
+#payrollTable.dataTable thead th:nth-child(3),
+#payrollTable.dataTable tfoot td:nth-child(3) {
+  width: 9%;
+}
+
+#payrollTable.dataTable thead th:nth-child(4),
+#payrollTable.dataTable tfoot td:nth-child(4) {
+  width: 14%;
+}
+
+#payrollTable.dataTable thead th:nth-child(5),
+#payrollTable.dataTable tfoot td:nth-child(5) {
+  width: 14%;
+}
+
+#payrollTable.dataTable thead th:nth-child(6),
+#payrollTable.dataTable tfoot td:nth-child(6) {
+  width: 12%;
+}
+
+#payrollTable.dataTable thead th:nth-child(7),
+#payrollTable.dataTable tfoot td:nth-child(7) {
+  width: 25%;
+}
 table.dataTable border-bottom {
   border-bottom: 1px solid #e0e7ec !important;
 }

@@ -131,6 +131,39 @@ def update_student(student_id: int, payload: StudentUpdate, db: Session = Depend
     return student
 
 
+@router.get("/{student_id}/check-unpaid-tuition")
+def check_unpaid_tuition(student_id: int, db: Session = Depends(get_db)):
+    from app.models import TuitionRecord
+    from sqlalchemy import select
+    # Truy vấn các phiếu thu có trạng thái chưa thanh toán hoặc thanh toán một phần
+    records = db.scalars(
+        select(TuitionRecord)
+        .where(
+            TuitionRecord.student_id == student_id,
+            TuitionRecord.payment_status.in_(["unpaid", "partial"])
+        )
+    ).all()
+    
+    total_unpaid = sum(max(0, r.total_amount - r.paid_amount) for r in records)
+    details = [
+        {
+            "record_id": r.id,
+            "month": r.month,
+            "year": r.year,
+            "total_amount": r.total_amount,
+            "paid_amount": r.paid_amount,
+            "unpaid_amount": max(0, r.total_amount - r.paid_amount)
+        }
+        for r in records
+    ]
+    return {
+        "has_unpaid": len(records) > 0 and total_unpaid > 0,
+        "unpaid_count": len(records),
+        "total_unpaid": total_unpaid,
+        "details": details
+    }
+
+
 @router.delete("/{student_id}")
 def delete_student(student_id: int, db: Session = Depends(get_db)):
     student = db.get(Student, student_id)
