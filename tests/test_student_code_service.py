@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import date, datetime
 from unittest.mock import patch
 
@@ -63,10 +64,11 @@ def test_default_template_matches_current_year_count(_mock_today) -> None:
 def test_yearly_increment_after_adding_students(_mock_today) -> None:
     with SessionLocal() as db:
         base_count = _yearly_student_count(db, FIXED_TODAY)
+        suffix = uuid.uuid4().hex[:8]
         for idx in range(2):
             db.add(
                 Student(
-                    student_code=f"YRLYINC{FIXED_TODAY.isoformat().replace('-', '')}{idx}",
+                    student_code=f"YRLY{suffix}{idx}",
                     full_name=f"Yearly Test {idx}",
                     is_active=True,
                     created_at=datetime(2026, 2, 1, tzinfo=VIETNAM_TZ),

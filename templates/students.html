@@ -71,6 +71,60 @@
   </section>
 </div>
 
+<section class="panel p-6 bg-white rounded-xl shadow-sm border border-slate-100 mt-6">
+  <div class="border-b border-slate-100 pb-3 mb-5">
+    <h2 class="text-lg font-extrabold text-slate-800">Cấu hình mã học sinh tự động</h2>
+    <p class="text-sm text-slate-500 mt-1">Thiết kế cấu trúc mã khi thêm học sinh mới (để trống ô mã trong form). Bấm chọn khối dữ liệu và kéo thả để sắp xếp thứ tự.</p>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-12 bg-slate-50 p-5 rounded-xl border border-slate-200">
+    <div class="lg:col-span-4 bg-white p-4 rounded-lg border border-slate-200">
+      <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">1. Khối thông tin sẵn có</h4>
+      <div class="space-y-2" id="availableBlocks">
+        <button type="button" onclick="addBlock('YEAR', 'YYYY')" class="w-full text-left p-2.5 bg-slate-50 hover:bg-teal-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center justify-between transition">
+          <span>Năm hiện tại</span>
+          <span class="text-xs text-slate-400">Năm</span>
+        </button>
+        <button type="button" onclick="addBlock('MONTH', 'MM')" class="w-full text-left p-2.5 bg-slate-50 hover:bg-teal-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center justify-between transition">
+          <span>Tháng hiện tại</span>
+          <span class="text-xs text-slate-400">Tháng</span>
+        </button>
+        <button type="button" onclick="addBlock('DAY', 'DD')" class="w-full text-left p-2.5 bg-slate-50 hover:bg-teal-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center justify-between transition">
+          <span>Ngày hiện tại</span>
+          <span class="text-xs text-slate-400">Ngày</span>
+        </button>
+        <button type="button" onclick="addBlock('TEXT', 'HS')" class="w-full text-left p-2.5 bg-slate-50 hover:bg-teal-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center justify-between transition">
+          <span>Ký tự cố định</span>
+          <span class="text-xs text-slate-400">Ký tự</span>
+        </button>
+        <button type="button" onclick="addBlock('SEQ', '6', 'yearly')" class="w-full text-left p-2.5 bg-slate-50 hover:bg-teal-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center justify-between transition">
+          <span>Số đếm tự tăng</span>
+          <span class="text-xs text-slate-400">Số TT</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="lg:col-span-8 bg-white p-4 rounded-lg border border-slate-200 flex flex-col justify-between">
+      <div>
+        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">2. Cấu trúc mã hiện tại (Kéo thả để đổi thứ tự)</h4>
+        <div id="activeBlocksContainer" class="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border border-dashed border-slate-300 min-h-16 items-center"></div>
+      </div>
+
+      <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <span class="text-xs font-bold text-slate-400 uppercase">Mẫu mã sẽ phát sinh:</span>
+          <div id="codePreview" class="text-lg font-mono font-extrabold text-[#0F766E] tracking-wider mt-1">2026HS000001</div>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-muted !py-1.5 !px-3 text-xs font-semibold" onclick="resetToDefaultTemplate()">Đặt lại mặc định</button>
+          <button type="button" class="btn btn-primary !py-1.5 !px-4 text-xs font-semibold" onclick="saveStudentCodeTemplate()">Lưu cấu hình mã</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <input type="hidden" id="student_code_template_json" />
+</section>
+
 <!-- Modal thêm và sửa thông tin học sinh -->
 <div id="studentModal" class="modal-backdrop hidden">
   <form id="studentForm" class="modal panel p-6 max-w-lg bg-white rounded-xl shadow-lg border border-slate-200">
@@ -84,7 +138,7 @@
       <div>
         <label class="label text-slate-700 font-semibold">Mã học sinh</label>
         <input class="field rounded-lg border-slate-200 bg-slate-50" name="student_code" placeholder="Để trống để tự động sinh mã" />
-        <span class="text-[11px] text-slate-400 mt-1 block">Hệ thống tự động tạo mã: {Năm}HS{Số_TT} nếu để trống.</span>
+        <span class="text-[11px] text-slate-400 mt-1 block">Để trống để hệ thống tự sinh mã theo cấu hình bên dưới (<span id="modalCodePreview" class="font-mono font-bold text-teal-700">2026HS000001</span>).</span>
       </div>
       <div>
         <label class="label text-slate-700 font-semibold">Họ tên phụ huynh</label>
@@ -120,6 +174,242 @@
 <script>
   let students = [], classes = [];
   let dataTableInstance = null;
+  let activeBlocks = [];
+  let studentCodeDragInitialized = false;
+
+  function initDragAndDrop() {
+    if (studentCodeDragInitialized) return;
+    const container = document.getElementById("activeBlocksContainer");
+    if (!container) return;
+
+    container.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const draggingEl = document.querySelector(".dragging");
+      if (!draggingEl) return;
+      const afterElement = getDragAfterElement(container, e.clientX);
+      if (afterElement == null) {
+        container.appendChild(draggingEl);
+      } else {
+        container.insertBefore(draggingEl, afterElement);
+      }
+    });
+
+    container.addEventListener("dragend", () => {
+      activeBlocks = readBlocksFromDOM();
+      updatePreview();
+    });
+
+    studentCodeDragInitialized = true;
+  }
+
+  function getDragAfterElement(container, x) {
+    const draggableElements = [...container.querySelectorAll(".draggable-block:not(.dragging)")];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = x - box.left - box.width / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  function readBlocksFromDOM() {
+    const container = document.getElementById("activeBlocksContainer");
+    const blockElements = container.querySelectorAll(".draggable-block");
+    const blocks = [];
+
+    blockElements.forEach((el) => {
+      const type = el.dataset.type;
+      if (type === "TEXT") {
+        const textInput = el.querySelector(".block-text-val");
+        blocks.push({
+          type,
+          value: (textInput?.value || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase(),
+        });
+      } else if (type === "YEAR") {
+        const yearSelect = el.querySelector(".block-year-val");
+        blocks.push({ type, value: yearSelect?.value || "YYYY" });
+      } else if (type === "SEQ") {
+        const seqLen = el.querySelector(".block-seq-len");
+        const seqReset = el.querySelector(".block-seq-reset");
+        blocks.push({
+          type,
+          value: seqLen?.value || "6",
+          reset: seqReset?.value || "yearly",
+        });
+      } else if (type === "MONTH") {
+        blocks.push({ type, value: "MM" });
+      } else if (type === "DAY") {
+        blocks.push({ type, value: "DD" });
+      }
+    });
+
+    return blocks;
+  }
+
+  function rebuildActiveBlocksFromDOM() {
+    activeBlocks = readBlocksFromDOM();
+    renderActiveBlocks();
+  }
+
+  function addBlock(type, value, reset = null) {
+    const newBlock = { type, value };
+    if (type === "SEQ" && reset) {
+      newBlock.reset = reset;
+    }
+    activeBlocks.push(newBlock);
+    renderActiveBlocks();
+  }
+
+  function removeBlock(index) {
+    activeBlocks.splice(index, 1);
+    renderActiveBlocks();
+  }
+
+  function renderActiveBlocks() {
+    const container = document.getElementById("activeBlocksContainer");
+    container.innerHTML = "";
+
+    if (activeBlocks.length === 0) {
+      container.innerHTML = `<span class="text-slate-400 text-xs w-full text-center py-4">Chưa chọn cấu trúc. Hãy bấm vào các khối bên trái để xây dựng.</span>`;
+      updatePreview();
+      return;
+    }
+
+    activeBlocks.forEach((block, idx) => {
+      const el = document.createElement("div");
+      el.className = "draggable-block flex items-center gap-1.5 bg-white border border-slate-300 px-3 py-2 rounded-lg text-sm font-semibold text-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-teal-500 transition";
+      el.draggable = true;
+      el.dataset.type = block.type;
+      el.dataset.value = block.value || "";
+      if (block.reset) el.dataset.reset = block.reset;
+
+      el.addEventListener("dragstart", () => el.classList.add("dragging", "opacity-50"));
+      el.addEventListener("dragend", () => el.classList.remove("dragging", "opacity-50"));
+
+      let blockContent = "";
+
+      if (block.type === "YEAR") {
+        blockContent = `
+          <span class="text-slate-400 text-xs">Năm</span>
+          <select class="block-year-val text-xs border-0 bg-slate-100 rounded p-1 font-bold focus:ring-0 cursor-pointer" onchange="rebuildActiveBlocksFromDOM()">
+            <option value="YYYY" ${block.value === "YYYY" ? "selected" : ""}>2026</option>
+            <option value="YY" ${block.value === "YY" ? "selected" : ""}>26</option>
+          </select>
+        `;
+      } else if (block.type === "MONTH") {
+        blockContent = `<span class="text-slate-400 text-xs">Tháng</span> <span class="font-mono bg-slate-100 px-1 rounded text-teal-700">06</span>`;
+      } else if (block.type === "DAY") {
+        blockContent = `<span class="text-slate-400 text-xs">Ngày</span> <span class="font-mono bg-slate-100 px-1 rounded text-teal-700">10</span>`;
+      } else if (block.type === "TEXT") {
+        blockContent = `
+          <span class="text-slate-400 text-xs">Chữ</span>
+          <input type="text" class="block-text-val font-mono bg-slate-50 border-b border-slate-200 focus:border-teal-500 focus:ring-0 text-xs py-0.5 px-1 w-12 text-center"
+                 value="${block.value || ""}" oninput="rebuildActiveBlocksFromDOM()" placeholder="HS" />
+        `;
+      } else if (block.type === "SEQ") {
+        blockContent = `
+          <span class="text-slate-400 text-xs">Số tự tăng</span>
+          <select class="block-seq-len text-xs border-0 bg-slate-100 rounded p-1 font-bold focus:ring-0 cursor-pointer" onchange="rebuildActiveBlocksFromDOM()">
+            <option value="3" ${block.value === "3" ? "selected" : ""}>3 số</option>
+            <option value="4" ${block.value === "4" ? "selected" : ""}>4 số</option>
+            <option value="5" ${block.value === "5" ? "selected" : ""}>5 số</option>
+            <option value="6" ${block.value === "6" ? "selected" : ""}>6 số</option>
+            <option value="8" ${block.value === "8" ? "selected" : ""}>8 số</option>
+          </select>
+          <select class="block-seq-reset text-xs border-0 bg-slate-100 rounded p-1 font-semibold text-slate-500 focus:ring-0 cursor-pointer" onchange="rebuildActiveBlocksFromDOM()">
+            <option value="yearly" ${block.reset === "yearly" ? "selected" : ""}>Reset năm</option>
+            <option value="monthly" ${block.reset === "monthly" ? "selected" : ""}>Reset tháng</option>
+            <option value="never" ${block.reset === "never" ? "selected" : ""}>Không reset</option>
+          </select>
+        `;
+      }
+
+      el.innerHTML = `
+        <span class="text-slate-300">⋮⋮</span>
+        ${blockContent}
+        <button type="button" onclick="removeBlock(${idx})" class="text-rose-500 hover:text-rose-700 ml-1 font-bold">×</button>
+      `;
+
+      container.appendChild(el);
+    });
+
+    updatePreview();
+  }
+
+  function updatePreview() {
+    let previewStr = "";
+    activeBlocks.forEach((b) => {
+      if (b.type === "YEAR") {
+        previewStr += b.value === "YYYY" ? "2026" : "26";
+      } else if (b.type === "MONTH") {
+        previewStr += "06";
+      } else if (b.type === "DAY") {
+        previewStr += "10";
+      } else if (b.type === "TEXT") {
+        previewStr += b.value ? b.value.toUpperCase() : "";
+      } else if (b.type === "SEQ") {
+        const padding = parseInt(b.value, 10) || 6;
+        previewStr += "1".padStart(padding, "0");
+      }
+    });
+
+    const previewText = previewStr || "MÃ_HỌC_SINH_RỖNG";
+    document.getElementById("codePreview").textContent = previewText;
+    const modalPreview = document.getElementById("modalCodePreview");
+    if (modalPreview) modalPreview.textContent = previewText;
+    document.getElementById("student_code_template_json").value = JSON.stringify(activeBlocks);
+  }
+
+  function resetToDefaultTemplate() {
+    activeBlocks = [
+      { type: "YEAR", value: "YYYY" },
+      { type: "TEXT", value: "HS" },
+      { type: "SEQ", value: "6", reset: "yearly" },
+    ];
+    renderActiveBlocks();
+  }
+
+  function loadStudentCodeTemplate(templateJson) {
+    if (templateJson) {
+      try {
+        const parsed = JSON.parse(templateJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          activeBlocks = parsed;
+        } else {
+          resetToDefaultTemplate();
+          initDragAndDrop();
+          return;
+        }
+      } catch (e) {
+        resetToDefaultTemplate();
+        initDragAndDrop();
+        return;
+      }
+    } else {
+      resetToDefaultTemplate();
+      initDragAndDrop();
+      return;
+    }
+    renderActiveBlocks();
+    initDragAndDrop();
+  }
+
+  async function loadStudentCodeSettings() {
+    const settings = await api("/api/settings");
+    loadStudentCodeTemplate(settings.student_code_template_json || "");
+  }
+
+  async function saveStudentCodeTemplate() {
+    updatePreview();
+    const templateJson = document.getElementById("student_code_template_json").value;
+    await api("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify([{ key: "student_code_template_json", value: templateJson }]),
+    });
+    toast("Đã lưu cấu hình mã học sinh.");
+  }
 
   function classBadges(list) {
     if (!list.length) return `<span class="text-slate-400">Chưa gán lớp</span>`;
@@ -295,6 +585,6 @@
     loadStudents();
   });
 
-  Promise.all([loadStudents(), loadClassOptions()]).catch((err) => toast(err.message, true));
+  Promise.all([loadStudents(), loadClassOptions(), loadStudentCodeSettings()]).catch((err) => toast(err.message, true));
 </script>
 {% endblock %}
