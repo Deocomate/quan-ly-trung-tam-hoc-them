@@ -52,7 +52,7 @@ def seed_defaults(db: Session) -> None:
         db.add(
             User(
                 username="admin",
-                password_hash=hash_password("123456"),
+                password_hash=hash_password("Admin@123*#"),
                 full_name="Quản trị viên",
                 is_active=True,
                 must_change_password=True,

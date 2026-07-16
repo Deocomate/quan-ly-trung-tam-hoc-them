@@ -28,7 +28,7 @@ def _image_bytes(fmt: str, color: tuple[int, ...]) -> bytes:
 
 
 def _login(client: TestClient) -> None:
-    response = client.post("/api/auth/login", json={"username": "admin", "password": "123456"})
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "Admin@123*#"})
     assert response.status_code == 200
 
 

@@ -61,7 +61,7 @@ def test_sample_seeder_is_idempotent_and_matches_expected_totals() -> None:
 def test_sample_seeder_locks_attendance_month() -> None:
     seed_sample_data()
     with TestClient(app) as client:
-        login = client.post("/api/auth/login", json={"username": "admin", "password": "123456"})
+        login = client.post("/api/auth/login", json={"username": "admin", "password": "Admin@123*#"})
         assert login.status_code == 200
         with SessionLocal() as db:
             student = db.scalar(select(Student).where(Student.student_code == "2026HS000001"))

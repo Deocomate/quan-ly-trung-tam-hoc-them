@@ -20,5 +20,5 @@ Nếu kỳ `06/2026` đã có phiếu học phí của học sinh không thuộc
 Tài khoản đăng nhập mặc định vẫn là:
 
 ```text
-admin / 123456
+admin / Admin@123*#
 ```

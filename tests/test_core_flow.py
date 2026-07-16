@@ -48,7 +48,7 @@ def cleanup_test_data() -> None:
 
 
 def login(client: TestClient) -> None:
-    response = client.post("/api/auth/login", json={"username": "admin", "password": "123456"})
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "Admin@123*#"})
     assert response.status_code == 200
 
 
@@ -169,8 +169,46 @@ def test_admin_seed_and_tuition_flow() -> None:
         assert len(temp_all_pdf.content) > 0
         assert "phieu-thu-12-2099.pdf" in temp_all_pdf.headers.get("Content-Disposition", "")
 
+        # Test status-based PDF export filter before locking (not locked means unpaid, so "da_thu" will return 404, "chua_thu" will return 200)
+        temp_dathu_pdf = client.get(f"/api/tuition/export-pdf?month=12&year=2099&class_id={klass['id']}&status=da_thu")
+        assert temp_dathu_pdf.status_code == 404
+
+        temp_chuathu_pdf = client.get(f"/api/tuition/export-pdf?month=12&year=2099&class_id={klass['id']}&status=chua_thu")
+        assert temp_chuathu_pdf.status_code == 200
+        assert len(temp_chuathu_pdf.content) > 0
+
+        # Test status-based Excel export filter before locking (not locked, so no DB records exist -> empty export)
+        temp_excel_dathu = client.get(f"/api/tuition/export-excel?month=12&year=2099&class_id={klass['id']}&status=da_thu")
+        assert temp_excel_dathu.status_code == 200
+        temp_excel_chuathu = client.get(f"/api/tuition/export-excel?month=12&year=2099&class_id={klass['id']}&status=chua_thu")
+        assert temp_excel_chuathu.status_code == 200
+
         lock = client.post("/api/tuition/lock", json={"month": 12, "year": 2099, "class_id": None})
         assert lock.status_code == 200
+
+        # Test status-based PDF export filter after locking (initially unpaid)
+        locked_dathu_pdf = client.get(f"/api/tuition/export-pdf?month=12&year=2099&class_id={klass['id']}&status=da_thu")
+        assert locked_dathu_pdf.status_code == 404
+
+        locked_chuathu_pdf = client.get(f"/api/tuition/export-pdf?month=12&year=2099&class_id={klass['id']}&status=chua_thu")
+        assert locked_chuathu_pdf.status_code == 200
+
+        # Update payment to paid/overpaid
+        records_resp = client.get(f"/api/tuition/records?month=12&year=2099&class_id={klass['id']}")
+        records = records_resp.json()
+        record_id = records[0]["id"]
+        
+        # Pay full amount (130,000) to mark as paid
+        pay_resp = client.put(f"/api/tuition/records/{record_id}/payment", json={"paid_amount": 130000})
+        assert pay_resp.status_code == 200
+
+        # Now "da_thu" should succeed and "chua_thu" should return 404
+        locked_dathu_pdf_after_pay = client.get(f"/api/tuition/export-pdf?month=12&year=2099&class_id={klass['id']}&status=da_thu")
+        assert locked_dathu_pdf_after_pay.status_code == 200
+        assert len(locked_dathu_pdf_after_pay.content) > 0
+
+        locked_chuathu_pdf_after_pay = client.get(f"/api/tuition/export-pdf?month=12&year=2099&class_id={klass['id']}&status=chua_thu")
+        assert locked_chuathu_pdf_after_pay.status_code == 404
 
         # Verify month API shows is_locked = True
         month_att_locked = client.get(f"/api/attendance/month?class_id={klass['id']}&month=12&year=2099").json()

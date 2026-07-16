@@ -97,7 +97,7 @@ docker compose up -d
 
 Ngay lần đầu khởi chạy, hệ thống tự động sinh tài khoản Quản trị viên mặc định:
 - **Tên đăng nhập:** `admin`
-- **Mật khẩu:** `123456`
+- **Mật khẩu:** `Admin@123*#`
 
 *(Hãy đổi mật khẩu ngay sau khi đăng nhập lần đầu).*
 
@@ -112,6 +112,20 @@ Chạy lệnh sau:
 python -m app.seeder
 ```
 *(Lưu ý: Bạn có thể chạy lệnh này nhiều lần, hệ thống sẽ xóa và tạo lại nguyên bản bộ dữ liệu mẫu mà không ảnh hưởng tới dữ liệu thực tế khác của bạn).*
+
+---
+
+## 📚 Tài liệu Dự án
+
+Tài liệu chi tiết về hệ thống được tổ chức trong thư mục `docs/`:
+* [Tài liệu Yêu cầu Người dùng (URD)](file:///c:/Users/minhlong/Desktop/projects/hoang-quanlylophoc/docs/urd.md): Yêu cầu chức năng và phi chức năng chi tiết.
+* [Project Overview & PDR](file:///c:/Users/minhlong/Desktop/projects/hoang-quanlylophoc/docs/project-overview-pdr.md): Tổng quan dự án và yêu cầu phát triển sản phẩm.
+* [Codebase Summary](file:///c:/Users/minhlong/Desktop/projects/hoang-quanlylophoc/docs/codebase-summary.md): Cấu trúc chi tiết các module mã nguồn và LOC.
+* [Code Standards](file:///c:/Users/minhlong/Desktop/projects/hoang-quanlylophoc/docs/code-standards.md): Quy chuẩn viết code và chuẩn cơ sở dữ liệu SQLAlchemy.
+* [System Architecture](file:///c:/Users/minhlong/Desktop/projects/hoang-quanlylophoc/docs/system-architecture.md): Sơ đồ thành phần hệ thống và luồng dữ liệu nghiệp vụ.
+* [Project Roadmap](file:///c:/Users/minhlong/Desktop/projects/hoang-quanlylophoc/docs/project-roadmap.md): Lộ trình phát triển và các tính năng tương lai.
+* [Deployment Guide](file:///c:/Users/minhlong/Desktop/projects/hoang-quanlylophoc/docs/deployment-guide.md): Hướng dẫn cài đặt local và chạy Docker.
+* [Design Guidelines](file:///c:/Users/minhlong/Desktop/projects/hoang-quanlylophoc/docs/design-guidelines.md): Hướng dẫn thiết kế giao diện Tailwind & templates Jinja2.
 
 ---
 

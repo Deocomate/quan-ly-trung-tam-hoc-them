@@ -183,6 +183,12 @@
     return `month=${month}&year=${year}${classId ? `&class_id=${classId}` : ""}`;
   }
 
+  function queryForExport() {
+    const q = query();
+    const status = document.getElementById("tuitionStatus").value;
+    return `${q}${status ? `&status=${status}` : ""}`;
+  }
+
   let allTuitionData = [];
   let currentIsLocked = false;
 
@@ -200,8 +206,8 @@
     notice.classList.toggle("hidden", !data.is_locked);
     notice.textContent = data.is_locked ? `Kỳ học phí đã chốt${data.locked_at ? ` lúc ${data.locked_at}` : ""}. Bạn vẫn có thể sửa điểm danh và chốt học phí lại để ghi đè dữ liệu cũ.` : "";
     
-    document.getElementById("zipLink").href = `/api/tuition/export-pdf?${query()}`;
-    document.getElementById("excelLink").href = `/api/tuition/export-excel?${query()}`;
+    document.getElementById("zipLink").href = `/api/tuition/export-pdf?${queryForExport()}`;
+    document.getElementById("excelLink").href = `/api/tuition/export-excel?${queryForExport()}`;
     
     if (data.is_locked) {
       allTuitionData = await api(`/api/tuition/records?${query()}`);
@@ -235,6 +241,10 @@
         return status === "unpaid" || status === "partial";
       });
     }
+
+    // Cập nhật lại link xuất file tương ứng với bộ lọc
+    document.getElementById("zipLink").href = `/api/tuition/export-pdf?${queryForExport()}`;
+    document.getElementById("excelLink").href = `/api/tuition/export-excel?${queryForExport()}`;
 
     renderPreview(filtered, currentIsLocked);
 

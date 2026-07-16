@@ -156,6 +156,7 @@ def export_pdf(
     year: int,
     class_id: int | None = None,
     student_id: int | None = None,
+    status: str | None = None,
     db: Session = Depends(get_db),
 ):
     from app.services.tuition_service import is_period_locked
@@ -199,6 +200,19 @@ def export_pdf(
                 ]
             )
             rows.append(temp_record)
+
+    # 3. Lọc theo trạng thái thanh toán nếu có yêu cầu
+    if status:
+        is_locked = is_period_locked(db, month, year)
+        filtered_rows = []
+        for r in rows:
+            stat = r.payment_status or "unpaid"
+            if status == "da_thu" and stat not in ["paid", "overpaid"]:
+                continue
+            if status == "chua_thu" and is_locked and stat in ["paid", "overpaid"]:
+                continue
+            filtered_rows.append(r)
+        rows = filtered_rows
 
     if not rows:
         raise HTTPException(status_code=404, detail="Chưa có phiếu thu để xuất.")

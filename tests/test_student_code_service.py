@@ -29,7 +29,7 @@ FIXED_TODAY = date(2026, 6, 10)
 
 
 def login(client: TestClient) -> None:
-    response = client.post("/api/auth/login", json={"username": "admin", "password": "123456"})
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "Admin@123*#"})
     assert response.status_code == 200
 
 
