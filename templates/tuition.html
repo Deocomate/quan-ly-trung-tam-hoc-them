@@ -81,6 +81,50 @@
     </div>
   </div>
 
+  <!-- Thống kê học phí lớp học -->
+  <div id="tuitionStatsBlock" class="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+        Thống kê học phí - <span id="statsClassName" class="text-teal-700 font-extrabold normal-case">Tất cả các lớp</span>
+      </h3>
+    </div>
+    <div class="grid gap-4 grid-cols-1 sm:grid-cols-3">
+      <div class="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex items-center justify-between">
+        <div>
+          <span class="text-xs text-slate-400 font-semibold uppercase block">Tổng phải thu</span>
+          <span id="statsExpected" class="text-lg font-extrabold text-slate-800">0đ</span>
+        </div>
+        <div class="h-9 w-9 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        </div>
+      </div>
+      <div class="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex items-center justify-between">
+        <div>
+          <span class="text-xs text-slate-400 font-semibold uppercase block">Đã thu</span>
+          <span id="statsCollected" class="text-lg font-extrabold text-teal-600">0đ</span>
+        </div>
+        <div class="h-9 w-9 bg-teal-50 text-teal-600 rounded-lg flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+      <div class="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex items-center justify-between">
+        <div>
+          <span class="text-xs text-slate-400 font-semibold uppercase block">Còn nợ</span>
+          <span id="statsDebt" class="text-lg font-extrabold text-rose-600">0đ</span>
+        </div>
+        <div class="h-9 w-9 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="mt-4 overflow-auto">
     <table id="tuitionTable" class="table w-full">
       <thead>
@@ -246,6 +290,9 @@
     document.getElementById("zipLink").href = `/api/tuition/export-pdf?${queryForExport()}`;
     document.getElementById("excelLink").href = `/api/tuition/export-excel?${queryForExport()}`;
 
+    // Cập nhật thống kê học phí
+    updateTuitionStats(allTuitionData);
+
     renderPreview(filtered, currentIsLocked);
 
     dataTableInstance = $("#tuitionTable").DataTable({
@@ -264,6 +311,68 @@
       pageLength: 10,
       retrieve: true
     });
+  }
+
+  function updateTuitionStats(allData) {
+    const classSelect = document.getElementById("tuitionClass");
+    const classId = classSelect.value;
+    
+    let className = "Tất cả các lớp";
+    if (classId) {
+      const selectedOption = classSelect.options[classSelect.selectedIndex];
+      if (selectedOption) {
+        className = selectedOption.text;
+      }
+    }
+
+    let totalExpected = 0;
+    let totalCollected = 0;
+    let totalDebt = 0;
+
+    if (classId) {
+      const targetClassId = parseInt(classId);
+      allData.forEach(record => {
+        const item = record.items.find(it => it.class_id === targetClassId);
+        if (item) {
+          const itemExpected = item.amount || 0;
+          let itemCollected = 0;
+          
+          const recordTotal = record.total_amount || 0;
+          const recordPaid = record.paid_amount || 0;
+          
+          if (recordPaid >= recordTotal) {
+            itemCollected = itemExpected;
+          } else if (recordPaid <= 0) {
+            itemCollected = 0;
+          } else {
+            // Phân bổ tỷ lệ
+            itemCollected = Math.round((itemExpected / recordTotal) * recordPaid);
+          }
+          
+          const itemDebt = itemExpected - itemCollected;
+          
+          totalExpected += itemExpected;
+          totalCollected += itemCollected;
+          totalDebt += itemDebt;
+        }
+      });
+    } else {
+      // Tính cho tất cả các lớp
+      allData.forEach(record => {
+        const recordTotal = record.total_amount || 0;
+        const recordPaid = record.paid_amount || 0;
+        const recordDebt = recordTotal - recordPaid;
+        
+        totalExpected += recordTotal;
+        totalCollected += recordPaid;
+        totalDebt += recordDebt;
+      });
+    }
+
+    document.getElementById("statsClassName").textContent = className;
+    document.getElementById("statsExpected").textContent = formatMoney(totalExpected) + "đ";
+    document.getElementById("statsCollected").textContent = formatMoney(totalCollected) + "đ";
+    document.getElementById("statsDebt").textContent = formatMoney(totalDebt) + "đ";
   }
 
   function renderPreview(rows, isLocked) {

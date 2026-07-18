@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import func, select, distinct
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import Attendance, Class, Student, TuitionRecord
+from app.models import Attendance, Class, Student, TuitionRecord, TuitionRecordItem
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"], dependencies=[Depends(get_current_user)])
 
@@ -74,6 +74,43 @@ def revenue(year: int, db: Session = Depends(get_db)):
     ).all()
     values = {month: amount for month, amount in rows}
     return [{"month": month, "amount": values.get(month, 0)} for month in range(1, 13)]
+
+
+@router.get("/classes-revenue")
+def classes_revenue(
+    year: int,
+    month: int | None = None,
+    period_type: str | None = None,
+    period_value: int | None = None,
+    db: Session = Depends(get_db)
+):
+    months = resolve_months_and_label(month, period_type, period_value)
+    rows = db.execute(
+        select(
+            TuitionRecordItem.class_id,
+            TuitionRecordItem.class_name,
+            TuitionRecordItem.subject,
+            func.count(distinct(TuitionRecord.student_id)).label("students_count"),
+            func.coalesce(func.sum(TuitionRecordItem.sessions), 0).label("sessions_count"),
+            func.coalesce(func.sum(TuitionRecordItem.amount), 0).label("revenue")
+        )
+        .join(TuitionRecordItem.record)
+        .where(TuitionRecord.month.in_(months), TuitionRecord.year == year)
+        .group_by(TuitionRecordItem.class_id, TuitionRecordItem.class_name, TuitionRecordItem.subject)
+        .order_by(func.coalesce(func.sum(TuitionRecordItem.amount), 0).desc())
+    ).all()
+    
+    return [
+        {
+            "class_id": r.class_id,
+            "class_name": r.class_name,
+            "subject": r.subject,
+            "students_count": r.students_count,
+            "sessions_count": r.sessions_count,
+            "revenue": r.revenue
+        }
+        for r in rows
+    ]
 
 
 @router.get("/export-excel")

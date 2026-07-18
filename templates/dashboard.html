@@ -97,6 +97,31 @@
     </div>
   </section>
 </div>
+
+<!-- Bảng chi tiết doanh thu theo lớp học -->
+<div class="mt-5 panel p-5 bg-white rounded-xl shadow-sm border border-slate-100 mb-6">
+  <div class="border-b border-slate-100 pb-3 mb-4">
+    <h2 class="text-lg font-extrabold text-slate-800">Chi tiết doanh thu theo lớp học</h2>
+    <p class="text-sm text-slate-500 mt-0.5">Thống kê số học sinh, số buổi học và tổng doanh thu thực tế của từng lớp.</p>
+  </div>
+  <div class="overflow-auto">
+    <table class="table w-full text-left">
+      <thead>
+        <tr>
+          <th class="font-bold text-slate-700 pb-2">Lớp học / Môn học</th>
+          <th class="font-bold text-slate-700 text-center pb-2">Số học sinh</th>
+          <th class="font-bold text-slate-700 text-center pb-2">Số buổi học</th>
+          <th class="font-bold text-slate-700 text-right pb-2">Doanh thu</th>
+        </tr>
+      </thead>
+      <tbody id="classRevenueRows">
+        <tr>
+          <td colspan="4" class="py-4 text-center text-slate-400">Đang tải dữ liệu...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -184,6 +209,25 @@
     
     // Gọi hàm render biểu đồ
     renderChart();
+
+    // Tải thông tin thống kê doanh thu theo lớp học
+    const classRevenue = await api(`/api/dashboard/classes-revenue?year=${year}&period_type=${periodType}&period_value=${periodValue}`);
+    const rowsEl = document.getElementById("classRevenueRows");
+    if (classRevenue.length === 0) {
+      rowsEl.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500 font-medium">Không phát sinh học phí trong kỳ này.</td></tr>`;
+    } else {
+      rowsEl.innerHTML = classRevenue.map(row => `
+        <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+          <td class="py-3">
+            <div class="font-bold text-slate-800">${row.class_name}</div>
+            <div class="text-xs text-slate-400 font-semibold mt-0.5">${row.subject}</div>
+          </td>
+          <td class="py-3 text-center font-semibold text-slate-700">${row.students_count} học sinh</td>
+          <td class="py-3 text-center font-semibold text-slate-700">${row.sessions_count} buổi</td>
+          <td class="py-3 text-right font-extrabold text-teal-700">${formatMoney(row.revenue)}đ</td>
+        </tr>
+      `).join("");
+    }
   }
 
   // Gắn sự kiện lắng nghe thay đổi

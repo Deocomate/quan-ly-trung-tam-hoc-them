@@ -26,27 +26,24 @@ def cleanup_test_data() -> None:
     init_db()
     with SessionLocal() as db:
         # Xóa học sinh test
-        student = db.scalar(select(Student).where(Student.student_code == "T_SYNC_STUD"))
-        if student:
-            records = db.scalars(select(TuitionRecord).where(TuitionRecord.student_id == student.id)).all()
-            for record in records:
-                db.execute(delete(TuitionRecordItem).where(TuitionRecordItem.record_id == record.id))
-                db.delete(record)
-            db.execute(delete(Attendance).where(Attendance.student_id == student.id))
-            db.execute(delete(Enrollment).where(Enrollment.student_id == student.id))
-            db.delete(student)
+        for code in ["T_SYNC_STUD", "T_STATS_STUD"]:
+            student = db.scalar(select(Student).where(Student.student_code == code))
+            if student:
+                records = db.scalars(select(TuitionRecord).where(TuitionRecord.student_id == student.id)).all()
+                for record in records:
+                    db.execute(delete(TuitionRecordItem).where(TuitionRecordItem.record_id == record.id))
+                    db.delete(record)
+                db.execute(delete(Attendance).where(Attendance.student_id == student.id))
+                db.execute(delete(Enrollment).where(Enrollment.student_id == student.id))
+                db.delete(student)
             
         # Xóa lớp test
-        c1 = db.scalar(select(Class).where(Class.name == "Lớp Test Sync 1"))
-        if c1:
-            db.execute(delete(Attendance).where(Attendance.class_id == c1.id))
-            db.execute(delete(Enrollment).where(Enrollment.class_id == c1.id))
-            db.delete(c1)
-        c2 = db.scalar(select(Class).where(Class.name == "Lớp Test Sync 2"))
-        if c2:
-            db.execute(delete(Attendance).where(Attendance.class_id == c2.id))
-            db.execute(delete(Enrollment).where(Enrollment.class_id == c2.id))
-            db.delete(c2)
+        for name in ["Lớp Test Sync 1", "Lớp Test Sync 2", "Lớp Thống Kê Test"]:
+            c = db.scalar(select(Class).where(Class.name == name))
+            if c:
+                db.execute(delete(Attendance).where(Attendance.class_id == c.id))
+                db.execute(delete(Enrollment).where(Enrollment.class_id == c.id))
+                db.delete(c)
             
         db.execute(delete(TuitionPeriod).where(TuitionPeriod.month == 11, TuitionPeriod.year == 2099))
         db.commit()
@@ -202,3 +199,136 @@ def test_dashboard_quarter_and_year_reports() -> None:
         pdf_year = client.get("/api/dashboard/export-pdf?year=2099&period_type=year")
         assert pdf_year.status_code == 200
         assert pdf_year.headers["content-type"] == "application/pdf"
+
+
+def test_new_student_auto_tuition_sync_locked_period() -> None:
+    with TestClient(app) as client:
+        login(client)
+
+        # 1. Tạo lớp học
+        c1 = client.post(
+            "/api/classes",
+            json={"name": "Lớp Test Sync 1", "subject": "TOÁN", "default_fee": 100000, "notes": "", "is_active": True},
+        ).json()
+
+        # 2. Chốt học phí trước khi xếp lớp cho học sinh mới
+        lock_resp = client.post("/api/tuition/lock", json={"month": 11, "year": 2099, "class_id": None})
+        assert lock_resp.status_code == 200
+
+        # 3. Tạo học sinh mới
+        student = client.post(
+            "/api/students",
+            json={
+                "student_code": "T_SYNC_STUD",
+                "full_name": "Học sinh Sync Học Phí",
+                "parent_phone": "0912345678",
+                "notes": "",
+                "is_active": True,
+            },
+        ).json()
+
+        # 4. Phân lớp cho học sinh mới (start_date trong tháng đã chốt)
+        client.post(
+            "/api/enrollments",
+            json={
+                "student_id": student["id"],
+                "class_ids": [c1["id"]],
+                "custom_fee": None,
+                "is_exempt": False,
+                "start_date": "2099-11-01",
+                "is_active": True,
+                "notes": "",
+            },
+        )
+
+        # Xác minh rằng TuitionRecord và TuitionRecordItem được tạo tự động với 0 buổi
+        records = client.get("/api/tuition/records?month=11&year=2099").json()
+        r = next((rec for rec in records if rec["student_id"] == student["id"]), None)
+        assert r is not None
+        assert r["total_sessions"] == 0
+        assert r["total_amount"] == 0
+        assert len(r["items"]) == 1
+        assert r["items"][0]["class_id"] == c1["id"]
+
+        # 5. Điểm danh Có mặt cho học sinh này
+        client.post(
+            "/api/attendance/bulk",
+            json={
+                "class_id": c1["id"],
+                "date": "2099-11-02",
+                "items": [{"student_id": student["id"], "status": "P"}],
+            },
+        )
+
+        # Xác minh rằng TuitionRecord tự động được cập nhật lại số buổi và tiền học phí mà không cần chốt lại
+        records = client.get("/api/tuition/records?month=11&year=2099").json()
+        r = next(rec for rec in records if rec["student_id"] == student["id"])
+        assert r["total_sessions"] == 1
+        assert r["total_amount"] == 100000
+        assert r["items"][0]["sessions"] == 1
+        assert r["items"][0]["amount"] == 100000
+
+
+def test_dashboard_classes_revenue_api() -> None:
+    with TestClient(app) as client:
+        login(client)
+
+        # 1. Tạo lớp học
+        c1 = client.post(
+            "/api/classes",
+            json={"name": "Lớp Thống Kê Test", "subject": "VẬT LÝ", "default_fee": 120000, "notes": "", "is_active": True},
+        ).json()
+
+        # 2. Tạo học sinh mới
+        student = client.post(
+            "/api/students",
+            json={
+                "student_code": "T_STATS_STUD",
+                "full_name": "Học sinh Thống Kê",
+                "parent_phone": "0912345678",
+                "notes": "",
+                "is_active": True,
+            },
+        ).json()
+
+        # 3. Phân lớp cho học sinh
+        client.post(
+            "/api/enrollments",
+            json={
+                "student_id": student["id"],
+                "class_ids": [c1["id"]],
+                "custom_fee": None,
+                "is_exempt": False,
+                "start_date": "2099-11-01",
+                "is_active": True,
+                "notes": "",
+            },
+        )
+
+        # 4. Điểm danh Có mặt cho học sinh
+        client.post(
+            "/api/attendance/bulk",
+            json={
+                "class_id": c1["id"],
+                "date": "2099-11-02",
+                "items": [{"student_id": student["id"], "status": "P"}],
+            },
+        )
+
+        # 5. Chốt học phí
+        client.post("/api/tuition/lock", json={"month": 11, "year": 2099, "class_id": None})
+
+        # 6. Gọi API lấy doanh thu theo lớp
+        resp = client.get("/api/dashboard/classes-revenue?year=2099&month=11")
+        assert resp.status_code == 200
+        data = resp.json()
+        
+        c_rev = next((item for item in data if item["class_name"] == "Lớp Thống Kê Test"), None)
+        assert c_rev is not None
+        assert "class_id" in c_rev
+        assert c_rev["subject"] == "VẬT LÝ"
+        assert c_rev["students_count"] == 1
+        assert c_rev["sessions_count"] == 1
+        assert c_rev["revenue"] == 120000
+
+

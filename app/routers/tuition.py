@@ -91,6 +91,7 @@ def records(month: int | None = None, year: int | None = None, class_id: int | N
             "items": [
                 {
                     "id": item.id,
+                    "class_id": item.class_id,
                     "class_name": item.class_name,
                     "subject": item.subject,
                     "sessions": item.sessions,
